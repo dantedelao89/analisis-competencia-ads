@@ -7,6 +7,10 @@ import sys, json
 from pathlib import Path
 from collections import Counter
 
+AUD_EMOJI = {"cold": "🧊", "warm": "🌡️", "retargeting": "🔥"}
+AUD_LABEL = {"cold": "FRÍO (TOFU)", "warm": "TIBIO (MOFU)", "retargeting": "RETARGETING (BOFU)"}
+
+
 def fmt_scene(s):
     out = []
     ts = f"{s.get('timestamp_start','?')}–{s.get('timestamp_end','?')}"
@@ -45,6 +49,20 @@ def main(folder: str):
     out.append(f"**Idiomas detectados en video:** {dict(langs)}  ")
     if prices:
         out.append(f"**Precios mencionados en video:** {', '.join(set(prices))}  ")
+
+    # Audience temperature breakdown
+    aud_counts = Counter()
+    for v in vids:
+        aud = (v["analysis"].get("audience") or {}).get("audience_temperature")
+        if aud:
+            aud_counts[aud] += 1
+    if aud_counts:
+        out.append(f"**Distribución por etapa del funnel:** ")
+        parts = []
+        for k in ["cold", "warm", "retargeting"]:
+            if k in aud_counts:
+                parts.append(f"{AUD_EMOJI[k]} {AUD_LABEL[k]}: **{aud_counts[k]}**")
+        out.append(" · ".join(parts) + "  ")
     out.append("\n---\n")
 
     out.append("## 📋 Resumen estructural\n")
@@ -61,6 +79,17 @@ def main(folder: str):
         out.append(f"- **Ad ID(s):** `{', '.join(entry['duplicate_of_ad_ids'])}`")
         out.append(f"- **Idioma:** {a.get('detected_language')}")
         out.append(f"- **Tono:** {a.get('tone')}")
+        aud = a.get("audience") or {}
+        aud_t = aud.get("audience_temperature")
+        if aud_t:
+            emoji = AUD_EMOJI.get(aud_t, "❓")
+            label = AUD_LABEL.get(aud_t, aud_t)
+            conf = aud.get("confidence", "?")
+            out.append(f"- **{emoji} Audiencia:** {label} _(confianza: {conf})_")
+            if aud.get("reasoning"):
+                out.append(f"  - _Por qué:_ {aud['reasoning']}")
+            if aud.get("signals_detected"):
+                out.append(f"  - _Señales:_ " + ", ".join(f"`{s}`" for s in aud["signals_detected"]))
         if a.get("price_mentioned"):
             out.append(f"- **💰 Precio mencionado:** {a['price_mentioned']}")
         if a.get("social_proof_mentioned"):

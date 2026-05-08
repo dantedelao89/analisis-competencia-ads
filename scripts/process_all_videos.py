@@ -35,8 +35,21 @@ PROMPT = """Sos un analista de paid ads. Te paso un video de un anuncio. Devolve
   "value_props_dichas": ["promesa concreta 1", "promesa concreta 2"],
   "cta_verbal": "si la voz menciona un CTA explícito ponelo; si no, null",
   "price_mentioned": "si el video menciona precio, copialo literal; si no, null",
-  "social_proof_mentioned": "número de miembros, testimonios, logos, etc; si no hay, null"
+  "social_proof_mentioned": "número de miembros, testimonios, logos, etc; si no hay, null",
+  "audience": {
+    "audience_temperature": "cold | warm | retargeting",
+    "confidence": "high | medium | low",
+    "reasoning": "1-3 oraciones explicando la clasificación",
+    "signals_detected": ["lista de señales concretas que llevaron a la clasificación"]
+  }
 }
+
+Definiciones de audience_temperature:
+- cold (TOFU): primer contacto. Explica QUIÉN es la marca y QUÉ hace. Hook fuerte para captar a desconocidos. Define el problema antes de vender. Social proof grande para legitimarse. Producción alta. Copy educativo o curioso. Ejemplos: "Most people don't know that...", revelación tipo "I'm AI".
+- warm (MOFU): la persona ya vio algo de la marca. Demos del producto, casos de uso específicos, testimonios. Habla del cómo más que del qué. Asume cierto contexto.
+- retargeting (BOFU): la persona ya interactuó. Asume conocimiento total del producto. Corto, directo. Urgencia/escasez ("last chance", "Black Friday"), descuentos específicos, recordatorios, CTA imperativo simple.
+
+Si tenés dudas, elegí cold con confidence: low.
 
 Reglas importantes:
 - scenes_breakdown debe ser una secuencia ORDENADA por timestamp con TODAS las escenas relevantes (típicamente 5-15 escenas en un ad de 20-60s; si hay un cambio de plano significativo es una escena nueva).

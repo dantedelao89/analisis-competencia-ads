@@ -251,9 +251,26 @@ Esto:
   "value_props_dichas": ["..."],
   "cta_verbal": "CTA verbal o null",
   "price_mentioned": "precio si aparece, o null",
-  "social_proof_mentioned": "social proof o null"
+  "social_proof_mentioned": "social proof o null",
+  "audience": {
+    "audience_temperature": "cold | warm | retargeting",
+    "confidence": "high | medium | low",
+    "reasoning": "por qué se clasifica así",
+    "signals_detected": ["señales específicas detectadas"]
+  }
 }
 ```
+
+**Clasificación de audiencia (CRÍTICO para análisis serio):**
+- 🧊 **cold (TOFU)**: ad de captación. Explica quién/qué es la marca, hooks fuertes, define el problema, producción alta. Ejemplo: revelación "I'm AI".
+- 🌡️ **warm (MOFU)**: ad de engagement. Demos del producto, casos de uso, testimonios. Asume cierto contexto.
+- 🔥 **retargeting (BOFU)**: ad de conversión. Asume familiaridad total. Urgencia/escasez (Black Friday, last chance), descuentos, recordatorios, CTA imperativo corto.
+
+Si los videos ya fueron analizados sin clasificación de audiencia, corré:
+```bash
+python3 scripts/classify_audience.py competitor-ads/<marca>
+```
+Eso clasifica usando el JSON existente sin re-procesar videos (mucho más rápido).
 
 ### Paso 6 — generar `analysis.md`
 

@@ -1,0 +1,4 @@
+.env
+competitor-ads/
+*.log
+.DS_Store

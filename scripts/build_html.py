@@ -1,175 +1,34 @@
 #!/usr/bin/env python3
-"""Genera analysis.html — informe visual interactivo a partir de video_analyses.json + ads_raw.json.
+"""Genera analysis.html con UI master-detail (sidebar + detail pane).
 Uso: python3 scripts/build_html.py <carpeta_competidor>
-HTML autocontenido (un solo archivo). Los videos se referencian relativos a videos/<id>.mp4.
 """
 import sys, json, html
 from pathlib import Path
 from collections import Counter
 
 AUD_META = {
-    "cold":         {"emoji": "🧊", "label": "FRÍO (TOFU)",          "color": "#3b82f6", "bg": "rgba(59,130,246,.15)"},
-    "warm":         {"emoji": "🌡️", "label": "TIBIO (MOFU)",         "color": "#f59e0b", "bg": "rgba(245,158,11,.15)"},
-    "retargeting":  {"emoji": "🔥", "label": "RETARGETING (BOFU)",   "color": "#ef4444", "bg": "rgba(239,68,68,.15)"},
+    "cold":         {"emoji": "🧊", "label": "FRÍO",        "full": "FRÍO (TOFU)",        "color": "#3b82f6"},
+    "warm":         {"emoji": "🌡️", "label": "TIBIO",       "full": "TIBIO (MOFU)",       "color": "#f59e0b"},
+    "retargeting":  {"emoji": "🔥", "label": "RETARGETING", "full": "RETARGETING (BOFU)", "color": "#ef4444"},
 }
 
 PURPOSE_COLORS = {
     "hook": "#a855f7", "pain": "#ef4444", "solución": "#3b82f6", "solucion": "#3b82f6",
     "demo": "#10b981", "oferta": "#f59e0b", "objeción": "#eab308", "objecion": "#eab308",
     "cta": "#ec4899", "social proof": "#8b5cf6", "fomo": "#ef4444",
+    "transición": "#64748b", "transicion": "#64748b", "target": "#06b6d4",
+    "aspiracional": "#8b5cf6", "introducción": "#a855f7",
+    "value prop": "#3b82f6", "promesa": "#3b82f6", "urgencia": "#ef4444",
+    "revelación": "#a855f7", "educativo": "#3b82f6",
 }
-
-CSS = """
-*{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0a0a0b; --bg2:#13131a; --bg3:#1c1c25; --border:#2a2a35;
-  --txt:#e8e8ec; --txt2:#9b9ba5; --txt3:#6b6b75;
-  --accent:#a78bfa; --accent2:#22d3ee;
-}
-html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.55;font-size:15px}
-.container{max-width:1180px;margin:0 auto;padding:32px 24px 80px}
-header{padding:48px 0 32px;border-bottom:1px solid var(--border);margin-bottom:40px}
-h1{font-size:42px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-h2{font-size:28px;margin:48px 0 20px;font-weight:700;letter-spacing:-.01em}
-h3{font-size:20px;margin:24px 0 12px;font-weight:600}
-.sub{color:var(--txt2);font-size:15px}
-.sub a{color:var(--accent2);text-decoration:none}
-.sub a:hover{text-decoration:underline}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:28px 0}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:20px}
-.kpi-label{color:var(--txt2);font-size:12px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;font-weight:600}
-.kpi-value{font-size:28px;font-weight:700;letter-spacing:-.02em}
-.kpi-value.small{font-size:18px}
-.aud-bar{display:flex;height:42px;border-radius:10px;overflow:hidden;margin:12px 0 28px;border:1px solid var(--border)}
-.aud-segment{display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
-.video-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;overflow:hidden;margin-bottom:28px}
-.video-header{padding:24px 28px;border-bottom:1px solid var(--border)}
-.vc-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.vc-title{font-size:22px;font-weight:700;letter-spacing:-.01em}
-.vc-num{color:var(--txt3);font-weight:500;margin-right:8px}
-.badges{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
-.badge-aud{}
-.badge-price{background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e}
-.badge-tone{background:var(--bg3);border-color:var(--border);color:var(--txt2)}
-.video-body{display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:0}
-@media(max-width:900px){.video-body{grid-template-columns:1fr}}
-.video-player{background:#000;padding:20px;display:flex;align-items:flex-start;justify-content:center;border-right:1px solid var(--border)}
-@media(max-width:900px){.video-player{border-right:none;border-bottom:1px solid var(--border)}}
-video{width:100%;max-width:380px;border-radius:10px;display:block;background:#000}
-.video-info{padding:24px 28px}
-.section-label{color:var(--txt3);font-size:11px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:8px}
-.hook-box{background:var(--bg3);border-left:3px solid var(--accent);padding:14px 16px;border-radius:8px;margin-bottom:18px;font-size:14px;color:var(--txt)}
-.aud-reasoning{background:var(--bg3);border-radius:10px;padding:14px;margin:12px 0;font-size:13px;color:var(--txt2);line-height:1.6}
-.signals{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.signal-chip{font-size:11px;padding:3px 9px;border-radius:6px;background:var(--bg);border:1px solid var(--border);color:var(--txt2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-details{margin-top:16px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
-details[open]{background:var(--bg)}
-summary{padding:12px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--txt);background:var(--bg3);user-select:none;list-style:none}
-summary::-webkit-details-marker{display:none}
-summary::before{content:"▶";display:inline-block;margin-right:8px;font-size:9px;transition:transform .15s;color:var(--txt3)}
-details[open] summary::before{transform:rotate(90deg)}
-.transcript{padding:16px 20px;font-size:14px;color:var(--txt);background:var(--bg);border-top:1px solid var(--border);line-height:1.7}
-.transcript em{color:var(--txt2);font-style:italic}
-.scenes{padding:8px;background:var(--bg)}
-.scene{display:grid;grid-template-columns:90px 100px 1fr;gap:14px;padding:14px;border-radius:10px;margin:6px 0;background:var(--bg2);border:1px solid var(--border)}
-@media(max-width:700px){.scene{grid-template-columns:1fr}}
-.scene-time{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;color:var(--accent2);font-weight:600;align-self:start;padding-top:2px}
-.scene-purpose{font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;align-self:start;padding:3px 8px;border-radius:6px;color:#fff;text-align:center}
-.scene-content{display:flex;flex-direction:column;gap:8px}
-.scene-row{font-size:13.5px;line-height:1.55}
-.scene-row .label{color:var(--txt3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-right:6px}
-.scene-row.visual{color:var(--txt)}
-.scene-row.audio{color:var(--accent);font-style:italic}
-.scene-row.audio-es{color:#67e8f9;font-style:italic}
-.scene-row.text{color:var(--txt2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
-.shot-type{display:inline-block;font-size:11px;color:var(--txt3);font-style:normal;margin-left:6px;padding:1px 6px;background:var(--bg3);border-radius:4px}
-.toc{position:sticky;top:24px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:24px;max-height:80vh;overflow-y:auto}
-.toc h4{font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--txt3);margin-bottom:10px;font-weight:700}
-.toc-item{display:flex;gap:8px;padding:6px 8px;border-radius:6px;font-size:13px;color:var(--txt2);text-decoration:none;cursor:pointer;align-items:center}
-.toc-item:hover{background:var(--bg3);color:var(--txt)}
-.toc-num{color:var(--txt3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;flex-shrink:0;width:20px}
-.layout{display:grid;grid-template-columns:240px 1fr;gap:32px;align-items:start}
-@media(max-width:1000px){.layout{grid-template-columns:1fr}.toc{position:relative;top:0;max-height:none}}
-.bar-chart{display:flex;flex-direction:column;gap:6px;margin:16px 0}
-.bar-row{display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;font-size:13px}
-.bar-track{height:24px;background:var(--bg3);border-radius:6px;overflow:hidden}
-.bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-weight:600;font-size:11px;min-width:24px}
-.bar-label{color:var(--txt2);text-transform:capitalize}
-.bar-count{color:var(--txt3);text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-footer{margin-top:60px;padding-top:32px;border-top:1px solid var(--border);color:var(--txt3);font-size:13px;text-align:center}
-.tag-row{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-.tag{font-size:11px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--txt2)}
-"""
 
 
 def esc(s):
     return html.escape(str(s) if s is not None else "")
 
 
-def aud_badge(aud):
-    t = aud.get("audience_temperature") if aud else None
-    if not t or t not in AUD_META:
-        return ""
-    m = AUD_META[t]
-    conf = aud.get("confidence", "?")
-    return f'<span class="badge badge-aud" style="background:{m["bg"]};border-color:{m["color"]};color:{m["color"]}">{m["emoji"]} {m["label"]} · {esc(conf)}</span>'
-
-
-def purpose_pill(purpose):
-    p = (purpose or "").strip().lower()
-    color = PURPOSE_COLORS.get(p.split("/")[0].strip(), "#64748b")
-    return f'<div class="scene-purpose" style="background:{color}">{esc(purpose or "—")}</div>'
-
-
-def scene_html(s):
-    visual = esc(s.get("visual", ""))
-    audio = esc(s.get("audio_dialogue", ""))
-    audio_es = esc(s.get("audio_dialogue_es", ""))
-    text = esc(s.get("on_screen_text", ""))
-    shot = esc(s.get("shot_type", ""))
-    ts = f'{esc(s.get("timestamp_start","?"))}–{esc(s.get("timestamp_end","?"))}'
-    rows = [f'<div class="scene-row visual"><span class="label">VISUAL</span>{visual}{f"<span class=shot-type>{shot}</span>" if shot else ""}</div>']
-    if audio:
-        rows.append(f'<div class="scene-row audio"><span class="label">AUDIO</span>“{audio}”</div>')
-    if audio_es:
-        rows.append(f'<div class="scene-row audio-es"><span class="label">AUDIO ES</span>“{audio_es}”</div>')
-    if text:
-        rows.append(f'<div class="scene-row text"><span class="label">TEXTO</span>{text}</div>')
-    return f'''<div class="scene">
-      <div class="scene-time">{ts}</div>
-      {purpose_pill(s.get("purpose"))}
-      <div class="scene-content">{"".join(rows)}</div>
-    </div>'''
-
-
-def aud_bar(aud_counts, total):
-    if not total:
-        return ""
-    parts = []
-    for k in ["cold", "warm", "retargeting"]:
-        n = aud_counts.get(k, 0)
-        if n == 0:
-            continue
-        pct = n * 100 / total
-        m = AUD_META[k]
-        parts.append(f'<div class="aud-segment" style="background:{m["color"]};width:{pct}%;">{m["emoji"]} {m["label"]}: {n} ({pct:.0f}%)</div>')
-    return f'<div class="aud-bar">{"".join(parts)}</div>' if parts else ""
-
-
-def bar_chart(counter, top=8):
-    if not counter:
-        return ""
-    mx = max(counter.values())
-    rows = []
-    for k, n in counter.most_common(top):
-        pct = n * 100 / mx
-        rows.append(f'''<div class="bar-row">
-          <div class="bar-label">{esc(k)}</div>
-          <div class="bar-track"><div class="bar-fill" style="width:{pct}%">{n}</div></div>
-          <div class="bar-count">{pct:.0f}%</div>
-        </div>''')
-    return f'<div class="bar-chart">{"".join(rows)}</div>'
+def purpose_color(p):
+    return PURPOSE_COLORS.get((p or "").strip().lower().split("/")[0].strip(), "#64748b")
 
 
 def build(folder: Path):
@@ -177,13 +36,12 @@ def build(folder: Path):
     vids = json.load(open(folder / "video_analyses.json"))
     page_name = (raw[0].get("snapshot") or {}).get("pageName") or folder.name
 
+    # Aggregates
     formats = Counter((ad.get("snapshot") or {}).get("displayFormat") or "?" for ad in raw)
-    langs = Counter(v["analysis"].get("detected_language") or "?" for v in vids)
-    prices = Counter(v["analysis"].get("price_mentioned") for v in vids if v["analysis"].get("price_mentioned"))
     aud_counts = Counter()
     purposes = Counter()
-    tones = Counter()
     total_scenes = 0
+    prices = Counter()
     for v in vids:
         a = v["analysis"]
         aud = (a.get("audience") or {}).get("audience_temperature")
@@ -194,169 +52,477 @@ def build(folder: Path):
             p = (s.get("purpose") or "").strip().lower()
             if p:
                 purposes[p] += 1
-        t = (a.get("tone") or "").strip()
-        if t:
-            tones[t] += 1
+        if a.get("price_mentioned"):
+            prices[a["price_mentioned"]] += 1
 
-    # Order: long-runners with price first, then everything else
+    # Order: price-mentioned first, then high-confidence
     vids_sorted = sorted(vids, key=lambda v: (
         0 if v["analysis"].get("price_mentioned") else 1,
-        -(v["analysis"].get("audience", {}) or {}).get("confidence", "?").count("h"),
+        v.get("title", "z"),
     ))
 
-    # TOC
-    toc_items = []
-    for i, v in enumerate(vids_sorted, 1):
-        title = v.get("title") or "(sin título)"
-        toc_items.append(f'<a class="toc-item" href="#vid-{i}"><span class="toc-num">{i:02d}</span>{esc(title[:38])}</a>')
-
-    # Video cards
-    cards = []
-    for i, entry in enumerate(vids_sorted, 1):
+    # Build embedded JSON for client-side rendering
+    payload = {
+        "videos": [],
+        "meta": {
+            "page_name": page_name,
+            "folder": folder.name,
+            "total_ads": len(raw),
+            "total_unique": len(vids),
+            "total_scenes": total_scenes,
+            "formats": dict(formats),
+            "audiences": dict(aud_counts),
+            "prices": dict(prices),
+            "purposes": dict(purposes.most_common()),
+        },
+    }
+    for entry in vids_sorted:
         a = entry["analysis"]
-        title = entry.get("title") or "(sin título)"
-        ad_id = entry["ad_id"]
-        dup = entry.get("duplicate_of_ad_ids", [ad_id])
-        video_path = f"videos/{ad_id}.mp4"
+        payload["videos"].append({
+            "ad_id": entry["ad_id"],
+            "title": entry.get("title") or "(sin título)",
+            "duplicate_of_ad_ids": entry.get("duplicate_of_ad_ids", [entry["ad_id"]]),
+            "video_path": f"videos/{entry['ad_id']}.mp4",
+            "language": a.get("detected_language"),
+            "tone": a.get("tone"),
+            "hook": a.get("hook_first_3s"),
+            "transcript_orig": a.get("transcript_original", ""),
+            "transcript_es": a.get("transcript_es", ""),
+            "cta_verbal": a.get("cta_verbal"),
+            "price": a.get("price_mentioned"),
+            "social_proof": a.get("social_proof_mentioned"),
+            "value_props": a.get("value_props_dichas") or [],
+            "key_visuals": a.get("key_visual_elements") or [],
+            "audience": a.get("audience") or {},
+            "scenes": a.get("scenes_breakdown") or [],
+        })
 
-        badges = []
-        if a.get("audience"):
-            badges.append(aud_badge(a["audience"]))
-        if a.get("price_mentioned"):
-            badges.append(f'<span class="badge badge-price">💰 {esc(a["price_mentioned"])}</span>')
-        if a.get("tone"):
-            badges.append(f'<span class="badge badge-tone">🎭 {esc(a["tone"])}</span>')
+    # CSS
+    css = """
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0b; --bg2:#13131a; --bg3:#1c1c25; --bg4:#252531;
+  --border:#2a2a35; --border2:#3a3a48;
+  --txt:#e8e8ec; --txt2:#9b9ba5; --txt3:#6b6b75;
+  --accent:#a78bfa; --accent2:#22d3ee; --accent3:#34d399;
+  --sidebar-w:340px; --header-h:auto;
+}
+html,body{background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;font-size:14px;line-height:1.5;overflow:hidden;height:100vh}
 
-        aud = a.get("audience") or {}
-        aud_block = ""
-        if aud.get("reasoning"):
-            signals = aud.get("signals_detected") or []
-            sig_html = "".join(f'<span class="signal-chip">{esc(s)}</span>' for s in signals)
-            aud_block = f'''<div class="aud-reasoning">
-              <div class="section-label">Por qué se clasificó así</div>
-              {esc(aud["reasoning"])}
-              {f"<div class=signals>{sig_html}</div>" if signals else ""}
-            </div>'''
+/* TOP HEADER */
+.top{position:sticky;top:0;background:var(--bg);border-bottom:1px solid var(--border);z-index:50;padding:14px 24px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.brand{font-size:18px;font-weight:700;letter-spacing:-.01em;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;flex-shrink:0}
+.brand .small{font-size:11px;color:var(--txt3);font-weight:500;-webkit-text-fill-color:var(--txt3);margin-left:6px}
+.kpis-strip{display:flex;gap:18px;flex-wrap:wrap;flex:1}
+.kpi-mini{display:flex;flex-direction:column;gap:1px}
+.kpi-mini .l{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}
+.kpi-mini .v{font-size:16px;font-weight:700;color:var(--txt)}
+.aud-pills{display:flex;gap:6px;flex-wrap:wrap}
+.aud-pill{font-size:11px;padding:3px 10px;border-radius:999px;font-weight:600;border:1px solid}
 
-        # Transcripts
-        trans_orig = esc(a.get("transcript_original", ""))
-        trans_es = esc(a.get("transcript_es", "") or "")
-        trans_block = f'''<details>
-          <summary>📝 Transcripción completa ({esc(a.get("detected_language","?"))})</summary>
-          <div class="transcript"><em>"{trans_orig}"</em></div>
-        </details>'''
-        if trans_es:
-            trans_block += f'''<details>
-              <summary>🇪🇸 Traducción al español</summary>
-              <div class="transcript"><em>"{trans_es}"</em></div>
-            </details>'''
+/* MAIN LAYOUT */
+.app{display:grid;grid-template-columns:var(--sidebar-w) 1fr;height:calc(100vh - 65px);}
+@media(max-width:900px){.app{grid-template-columns:1fr;height:auto;overflow:auto}html,body{overflow:auto}}
 
-        # Scenes
-        scenes = a.get("scenes_breakdown") or []
-        scenes_html = "".join(scene_html(s) for s in scenes)
-        scenes_block = f'''<details open>
-          <summary>🎬 Desglose escena por escena ({len(scenes)})</summary>
-          <div class="scenes">{scenes_html}</div>
-        </details>''' if scenes else ""
+/* SIDEBAR */
+.sidebar{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.search{padding:12px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);z-index:5}
+.search input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--txt);font-size:13px;outline:none}
+.search input:focus{border-color:var(--accent)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.filter-btn{font-size:11px;padding:4px 10px;border-radius:999px;background:var(--bg3);border:1px solid var(--border);color:var(--txt2);cursor:pointer;transition:all .15s}
+.filter-btn:hover{border-color:var(--accent)}
+.filter-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+.video-list{flex:1;padding:6px}
+.vid-item{padding:12px;border-radius:10px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:background .12s;border:1px solid transparent}
+.vid-item:hover{background:var(--bg3)}
+.vid-item.active{background:var(--bg3);border-color:var(--accent)}
+.vid-item .num{font-size:10px;color:var(--txt3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:600}
+.vid-item .title{font-size:13px;font-weight:600;color:var(--txt);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.vid-item .meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.tag-mini{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:600;line-height:1.4}
 
-        # Value props / social proof / CTA
-        meta_rows = []
-        if a.get("hook_first_3s"):
-            meta_rows.append(f'<div class="hook-box"><div class="section-label">Hook (primeros 3s)</div>{esc(a["hook_first_3s"])}</div>')
-        if a.get("cta_verbal"):
-            meta_rows.append(f'<div style="margin-bottom:10px"><span class="section-label" style="display:inline">CTA verbal</span> <em>"{esc(a["cta_verbal"])}"</em></div>')
-        if a.get("social_proof_mentioned"):
-            meta_rows.append(f'<div style="margin-bottom:10px"><span class="section-label" style="display:inline">Social proof</span> {esc(a["social_proof_mentioned"])}</div>')
-        if a.get("value_props_dichas"):
-            tags = "".join(f'<span class="tag">{esc(v)}</span>' for v in a["value_props_dichas"])
-            meta_rows.append(f'<div><div class="section-label">Value props dichas</div><div class="tag-row">{tags}</div></div>')
+/* DETAIL */
+.detail{overflow-y:auto;background:var(--bg)}
+.detail-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--txt3);font-size:14px;padding:40px;text-align:center}
+.detail-content{padding:0;max-width:1200px;margin:0 auto}
 
-        cards.append(f'''<div class="video-card" id="vid-{i}">
-          <div class="video-header">
-            <div class="vc-title-row">
-              <div class="vc-title"><span class="vc-num">#{i:02d}</span>{esc(title)}</div>
-            </div>
-            <div class="badges">{"".join(badges)}</div>
-            <div style="margin-top:10px;font-size:12px;color:var(--txt3)">Ad ID(s): <code style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">{esc(", ".join(dup))}</code></div>
-          </div>
-          <div class="video-body">
-            <div class="video-player">
-              <video controls preload="metadata" src="{video_path}"></video>
-            </div>
-            <div class="video-info">
-              {"".join(meta_rows)}
-              {aud_block}
-              {trans_block}
-              {scenes_block}
-            </div>
-          </div>
-        </div>''')
+/* DETAIL HEADER */
+.dh{padding:24px 32px 18px;border-bottom:1px solid var(--border)}
+.dh h2{font-size:24px;font-weight:700;letter-spacing:-.01em;margin-bottom:10px}
+.dh .ids{font-size:11px;color:var(--txt3);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:6px}
+.dh-badges{display:flex;gap:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 11px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+.badge-aud{}
+.badge-price{background:rgba(34,197,94,.15);border-color:#22c55e;color:#22c55e}
+.badge-tone{background:var(--bg3);border-color:var(--border);color:var(--txt2)}
+.badge-lang{background:var(--bg3);border-color:var(--border);color:var(--txt2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
-    # KPIs
-    kpis = [
-        ("Ads activos", str(len(raw))),
-        ("Creativos únicos", str(len(vids))),
-        ("Escenas totales", str(total_scenes)),
-        ("Idiomas", ", ".join(langs.keys()) or "—"),
-    ]
-    if prices:
-        kpis.append(("Precios mencionados", " · ".join(f"{p} ({n})" for p, n in prices.most_common())))
+/* DETAIL BODY: TWO COLUMN */
+.db{display:grid;grid-template-columns:380px 1fr;gap:24px;padding:24px 32px}
+@media(max-width:1100px){.db{grid-template-columns:1fr}}
+.dvideo{position:sticky;top:24px;align-self:start}
+@media(max-width:1100px){.dvideo{position:relative;top:0}}
+.dvideo video{width:100%;border-radius:12px;background:#000;display:block;border:1px solid var(--border)}
+.dmeta{display:flex;flex-direction:column;gap:14px;margin-top:14px}
+.meta-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.meta-card .l{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:6px}
+.meta-card .v{font-size:13px;color:var(--txt);line-height:1.5}
+.meta-card .v em{color:var(--accent2);font-style:italic}
 
-    kpi_html = "".join(
-        f'<div class="kpi"><div class="kpi-label">{esc(l)}</div><div class="kpi-value{" small" if len(v)>16 else ""}">{esc(v)}</div></div>'
-        for l, v in kpis
-    )
+.dinfo{display:flex;flex-direction:column;gap:18px}
 
-    # Format counts
-    fmt_html = "".join(
-        f'<div class="kpi"><div class="kpi-label">{esc(k)}</div><div class="kpi-value">{n}</div></div>'
-        for k, n in formats.most_common()
-    )
+/* TABS */
+.tabs{display:flex;border-bottom:1px solid var(--border);gap:0}
+.tab{padding:10px 16px;cursor:pointer;font-size:13px;font-weight:600;color:var(--txt2);border-bottom:2px solid transparent;transition:all .15s}
+.tab:hover{color:var(--txt)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-count{display:inline-block;font-size:11px;color:var(--txt3);margin-left:6px;padding:1px 6px;background:var(--bg3);border-radius:4px}
+.tab.active .tab-count{background:rgba(167,139,250,.2);color:var(--accent)}
+.tab-panel{display:none;padding:18px 0}
+.tab-panel.active{display:block}
+
+/* OVERVIEW TAB */
+.hook-card{background:linear-gradient(135deg,rgba(167,139,250,.08),rgba(34,211,238,.05));border:1px solid rgba(167,139,250,.3);border-radius:12px;padding:16px}
+.hook-card .l{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px}
+.hook-card .v{font-size:14px;color:var(--txt);line-height:1.55}
+
+.aud-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:14px}
+.aud-card .l{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:8px}
+.aud-card .reasoning{font-size:13px;color:var(--txt);line-height:1.65;margin-bottom:10px}
+.signals{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.signal-chip{font-size:11px;padding:3px 9px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);color:var(--txt2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.tags-card{margin-top:14px}
+.tags-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:600px){.tags-grid{grid-template-columns:1fr}}
+.tag-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.tag{font-size:11.5px;padding:4px 9px;background:var(--bg3);border:1px solid var(--border);border-radius:5px;color:var(--txt2)}
+
+/* SCENES TAB */
+.scenes-timeline{display:flex;height:36px;border-radius:8px;overflow:hidden;margin-bottom:18px;border:1px solid var(--border);background:var(--bg2)}
+.timeline-seg{cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.4);transition:filter .15s;border-right:1px solid rgba(0,0,0,.2)}
+.timeline-seg:hover{filter:brightness(1.2)}
+.timeline-seg:last-child{border-right:none}
+
+.scene{display:grid;grid-template-columns:auto auto 1fr;gap:14px;padding:14px;border-radius:10px;margin:8px 0;background:var(--bg2);border:1px solid var(--border);cursor:default;transition:border-color .15s}
+.scene:hover{border-color:var(--border2)}
+.scene.highlight{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.scene-time{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--accent2);font-weight:600;align-self:start;padding-top:3px;white-space:nowrap}
+.scene-purpose{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;align-self:start;padding:3px 8px;border-radius:5px;color:#fff;text-align:center;white-space:nowrap}
+.scene-content{display:flex;flex-direction:column;gap:6px;min-width:0}
+.scene-row{font-size:13px;line-height:1.5;word-wrap:break-word}
+.scene-row .label{color:var(--txt3);font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-right:6px;display:inline-block;width:54px}
+.scene-row.visual{color:var(--txt)}
+.scene-row.audio{color:#c4b5fd;font-style:italic}
+.scene-row.audio-es{color:#67e8f9;font-style:italic}
+.scene-row.text{color:var(--txt2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px}
+.shot-type{display:inline-block;font-size:10px;color:var(--txt3);font-style:normal;margin-left:6px;padding:1px 5px;background:var(--bg3);border-radius:4px}
+
+/* TRANSCRIPT TAB */
+.transcript-block{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:14px}
+.transcript-block .l{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.transcript-block .v{font-size:14px;color:var(--txt);line-height:1.7;font-style:italic}
+
+/* OVERVIEW (when no video selected) */
+.overview-pane{padding:32px}
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:24px}
+.ov-card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px}
+.ov-card .l{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-bottom:8px}
+.ov-card .v{font-size:24px;font-weight:700;letter-spacing:-.02em}
+.ov-card .v.small{font-size:14px;font-weight:600}
+.ov-bar{display:flex;height:38px;border-radius:10px;overflow:hidden;margin:14px 0;border:1px solid var(--border)}
+.ov-bar-seg{display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+
+.bar-chart{display:flex;flex-direction:column;gap:6px;margin:14px 0}
+.bar-row{display:grid;grid-template-columns:140px 1fr 60px;gap:10px;align-items:center;font-size:12.5px}
+.bar-track{height:22px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;color:#fff;font-weight:600;font-size:11px;min-width:24px}
+.bar-label{color:var(--txt2);text-transform:capitalize}
+.bar-count{color:var(--txt3);text-align:right;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px}
+
+h3.section-h{font-size:13px;color:var(--txt2);margin:24px 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+
+/* SCROLLBARS */
+.sidebar::-webkit-scrollbar,.detail::-webkit-scrollbar{width:8px}
+.sidebar::-webkit-scrollbar-track,.detail::-webkit-scrollbar-track{background:transparent}
+.sidebar::-webkit-scrollbar-thumb,.detail::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.sidebar::-webkit-scrollbar-thumb:hover,.detail::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+"""
+
+    # JavaScript (client-side rendering)
+    js = """
+const DATA = window.__DATA__;
+const AUD_META = """ + json.dumps({k: v for k, v in AUD_META.items()}) + """;
+const PURPOSE_COLORS = """ + json.dumps(PURPOSE_COLORS) + """;
+
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const purposeColor = p => PURPOSE_COLORS[(p||"").trim().toLowerCase().split("/")[0].trim()] || "#64748b";
+
+let state = { selected: null, search: "", filter: "all" };
+
+function renderSidebar() {
+  const list = $("#video-list");
+  const q = state.search.toLowerCase();
+  const filter = state.filter;
+  const items = DATA.videos.map((v, i) => ({v, i})).filter(({v}) => {
+    if (filter !== "all" && v.audience?.audience_temperature !== filter) return false;
+    if (q && !((v.title + " " + v.transcript_orig + " " + (v.transcript_es||"")).toLowerCase().includes(q))) return false;
+    return true;
+  });
+  list.innerHTML = items.length === 0
+    ? '<div style="padding:20px;text-align:center;color:var(--txt3);font-size:13px">Sin resultados</div>'
+    : items.map(({v, i}) => {
+      const aud = v.audience?.audience_temperature;
+      const audMeta = aud ? AUD_META[aud] : null;
+      const audTag = audMeta ? `<span class="tag-mini" style="background:${audMeta.color}20;border:1px solid ${audMeta.color}40;color:${audMeta.color}">${audMeta.emoji} ${audMeta.label}</span>` : "";
+      const priceTag = v.price ? `<span class="tag-mini" style="background:rgba(34,197,94,.15);border:1px solid #22c55e40;color:#22c55e">💰 ${esc(v.price)}</span>` : "";
+      return `<div class="vid-item ${state.selected === i ? "active" : ""}" data-i="${i}">
+        <div class="num">#${String(i+1).padStart(2,"0")}</div>
+        <div class="title">${esc(v.title)}</div>
+        <div class="meta">${audTag}${priceTag}</div>
+      </div>`;
+    }).join("");
+  $$("#video-list .vid-item").forEach(el => el.addEventListener("click", () => selectVideo(parseInt(el.dataset.i))));
+}
+
+function selectVideo(i) {
+  state.selected = i;
+  history.replaceState(null, "", "#v" + i);
+  renderSidebar();
+  renderDetail();
+}
+
+function renderDetail() {
+  const pane = $("#detail");
+  if (state.selected === null) {
+    pane.innerHTML = renderOverview();
+    return;
+  }
+  const v = DATA.videos[state.selected];
+  const aud = v.audience || {};
+  const audMeta = AUD_META[aud.audience_temperature];
+  const badges = [];
+  if (audMeta) badges.push(`<span class="badge badge-aud" style="background:${audMeta.color}25;border-color:${audMeta.color};color:${audMeta.color}">${audMeta.emoji} ${audMeta.full} · ${esc(aud.confidence||"?")}</span>`);
+  if (v.price) badges.push(`<span class="badge badge-price">💰 ${esc(v.price)}</span>`);
+  if (v.tone) badges.push(`<span class="badge badge-tone">🎭 ${esc(v.tone)}</span>`);
+  if (v.language) badges.push(`<span class="badge badge-lang">${esc(v.language).toUpperCase()}</span>`);
+
+  pane.innerHTML = `
+  <div class="detail-content">
+    <div class="dh">
+      <h2>#${String(state.selected+1).padStart(2,"0")} · ${esc(v.title)}</h2>
+      <div class="dh-badges">${badges.join("")}</div>
+      <div class="ids">Ad ID(s): ${esc((v.duplicate_of_ad_ids||[]).join(", "))}</div>
+    </div>
+    <div class="db">
+      <div class="dvideo">
+        <video controls preload="metadata" src="${esc(v.video_path)}"></video>
+        <div class="dmeta">
+          ${v.cta_verbal ? `<div class="meta-card"><div class="l">📢 CTA verbal</div><div class="v"><em>"${esc(v.cta_verbal)}"</em></div></div>` : ""}
+          ${v.social_proof ? `<div class="meta-card"><div class="l">🏅 Social proof</div><div class="v">${esc(v.social_proof)}</div></div>` : ""}
+        </div>
+      </div>
+      <div class="dinfo">
+        <div class="tabs">
+          <div class="tab active" data-tab="overview">Overview</div>
+          <div class="tab" data-tab="scenes">Escenas <span class="tab-count">${(v.scenes||[]).length}</span></div>
+          <div class="tab" data-tab="transcript">Transcripción</div>
+        </div>
+        <div class="tab-panel active" data-panel="overview">${renderOverviewTab(v, aud)}</div>
+        <div class="tab-panel" data-panel="scenes">${renderScenesTab(v)}</div>
+        <div class="tab-panel" data-panel="transcript">${renderTranscriptTab(v)}</div>
+      </div>
+    </div>
+  </div>`;
+
+  $$(".tab", pane).forEach(t => t.addEventListener("click", () => {
+    $$(".tab", pane).forEach(x => x.classList.remove("active"));
+    $$(".tab-panel", pane).forEach(x => x.classList.remove("active"));
+    t.classList.add("active");
+    $(`.tab-panel[data-panel="${t.dataset.tab}"]`, pane).classList.add("active");
+  }));
+}
+
+function renderOverviewTab(v, aud) {
+  const audMeta = AUD_META[aud?.audience_temperature];
+  const signals = (aud?.signals_detected || []).map(s => `<span class="signal-chip">${esc(s)}</span>`).join("");
+  const reasonBlock = aud?.reasoning ? `
+    <div class="aud-card">
+      <div class="l">${audMeta ? audMeta.emoji + " " + audMeta.full : "Audiencia"} · clasificación</div>
+      <div class="reasoning">${esc(aud.reasoning)}</div>
+      ${signals ? `<div class="l" style="margin-top:12px;margin-bottom:6px">Señales detectadas</div><div class="signals">${signals}</div>` : ""}
+    </div>` : "";
+
+  const valueProps = (v.value_props||[]).map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  const visuals = (v.key_visuals||[]).map(t => `<span class="tag">${esc(t)}</span>`).join("");
+  const tagsBlock = (valueProps || visuals) ? `
+    <div class="tags-card">
+      <div class="tags-grid">
+        ${valueProps ? `<div><div class="meta-card" style="padding:14px 16px"><div class="l">💡 Value props dichas</div><div class="tag-list">${valueProps}</div></div></div>` : ""}
+        ${visuals ? `<div><div class="meta-card" style="padding:14px 16px"><div class="l">🎨 Elementos visuales clave</div><div class="tag-list">${visuals}</div></div></div>` : ""}
+      </div>
+    </div>` : "";
+
+  return `
+    ${v.hook ? `<div class="hook-card"><div class="l">⚡ Hook (primeros 3s)</div><div class="v">${esc(v.hook)}</div></div>` : ""}
+    ${reasonBlock}
+    ${tagsBlock}`;
+}
+
+function renderScenesTab(v) {
+  const scenes = v.scenes || [];
+  if (!scenes.length) return '<div style="color:var(--txt3);padding:20px;text-align:center">Sin escenas analizadas</div>';
+
+  const total = scenes.length;
+  const timeline = scenes.map((s, idx) => {
+    const c = purposeColor(s.purpose);
+    const pct = 100 / total;
+    return `<div class="timeline-seg" data-idx="${idx}" style="background:${c};width:${pct}%" title="${esc(s.purpose||"")} (${esc(s.timestamp_start)})">${total <= 12 ? esc((s.purpose||"").slice(0,8)) : ""}</div>`;
+  }).join("");
+
+  const sceneRows = scenes.map((s, idx) => {
+    const c = purposeColor(s.purpose);
+    const audio = s.audio_dialogue ? `<div class="scene-row audio"><span class="label">AUDIO</span>"${esc(s.audio_dialogue)}"</div>` : "";
+    const audioEs = s.audio_dialogue_es ? `<div class="scene-row audio-es"><span class="label">AUDIO ES</span>"${esc(s.audio_dialogue_es)}"</div>` : "";
+    const text = s.on_screen_text ? `<div class="scene-row text"><span class="label">TEXTO</span>${esc(s.on_screen_text)}</div>` : "";
+    const shot = s.shot_type ? `<span class="shot-type">${esc(s.shot_type)}</span>` : "";
+    return `<div class="scene" data-idx="${idx}">
+      <div class="scene-time">${esc(s.timestamp_start)}–${esc(s.timestamp_end)}</div>
+      <div class="scene-purpose" style="background:${c}">${esc(s.purpose||"—")}</div>
+      <div class="scene-content">
+        <div class="scene-row visual"><span class="label">VISUAL</span>${esc(s.visual||"")}${shot}</div>
+        ${audio}${audioEs}${text}
+      </div>
+    </div>`;
+  }).join("");
+
+  return `<div class="scenes-timeline" id="timeline">${timeline}</div>${sceneRows}`;
+}
+
+function renderTranscriptTab(v) {
+  const orig = v.transcript_orig
+    ? `<div class="transcript-block">
+        <div class="l"><span>Original (${esc((v.language||"?").toUpperCase())})</span></div>
+        <div class="v">"${esc(v.transcript_orig)}"</div>
+      </div>` : "";
+  const es = v.transcript_es
+    ? `<div class="transcript-block">
+        <div class="l"><span>🇪🇸 Traducción al español</span></div>
+        <div class="v">"${esc(v.transcript_es)}"</div>
+      </div>` : "";
+  return orig + es || '<div style="color:var(--txt3);padding:20px;text-align:center">Sin transcripción</div>';
+}
+
+function renderOverview() {
+  const m = DATA.meta;
+  const totalAud = Object.values(m.audiences).reduce((a,b)=>a+b,0);
+  const audBar = ["cold","warm","retargeting"].filter(k => m.audiences[k]).map(k => {
+    const n = m.audiences[k]; const pct = n*100/totalAud;
+    const aud = AUD_META[k];
+    return `<div class="ov-bar-seg" style="background:${aud.color};width:${pct}%">${aud.emoji} ${aud.full}: ${n} (${pct.toFixed(0)}%)</div>`;
+  }).join("");
+
+  const purposes = m.purposes;
+  const maxP = Math.max(...Object.values(purposes), 1);
+  const purposeBars = Object.entries(purposes).slice(0,10).map(([k,n]) => {
+    const pct = n*100/maxP;
+    const c = purposeColor(k);
+    return `<div class="bar-row">
+      <div class="bar-label">${esc(k)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${c}">${n}</div></div>
+      <div class="bar-count">${(n*100/m.total_scenes).toFixed(0)}%</div>
+    </div>`;
+  }).join("");
+
+  return `<div class="overview-pane">
+    <h2 style="font-size:24px;margin-bottom:6px">📊 Resumen del análisis</h2>
+    <p style="color:var(--txt2);margin-bottom:24px;font-size:14px">Seleccioná un video del panel izquierdo para ver el análisis detallado.</p>
+
+    <div class="ov-grid">
+      <div class="ov-card"><div class="l">Ads activos</div><div class="v">${m.total_ads}</div></div>
+      <div class="ov-card"><div class="l">Creativos únicos</div><div class="v">${m.total_unique}</div></div>
+      <div class="ov-card"><div class="l">Escenas analizadas</div><div class="v">${m.total_scenes}</div></div>
+      <div class="ov-card"><div class="l">Precios mencionados</div><div class="v small">${Object.entries(m.prices).map(([p,n])=>`${esc(p)} (${n})`).join(" · ")||"—"}</div></div>
+    </div>
+
+    <h3 class="section-h">Distribución por etapa del funnel</h3>
+    <div class="ov-bar">${audBar}</div>
+
+    <h3 class="section-h">Roles narrativos detectados (${m.total_scenes} escenas)</h3>
+    <div class="bar-chart">${purposeBars}</div>
+
+    <h3 class="section-h">Distribución por formato</h3>
+    <div class="ov-grid">
+      ${Object.entries(m.formats).map(([k,n])=>`<div class="ov-card"><div class="l">${esc(k)}</div><div class="v">${n}</div></div>`).join("")}
+    </div>
+  </div>`;
+}
+
+function setupFilters() {
+  $("#search").addEventListener("input", e => { state.search = e.target.value; renderSidebar(); });
+  $$(".filter-btn").forEach(b => b.addEventListener("click", () => {
+    $$(".filter-btn").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    state.filter = b.dataset.filter;
+    renderSidebar();
+  }));
+}
+
+// Init
+setupFilters();
+renderSidebar();
+const hash = location.hash.match(/^#v(\\d+)$/);
+if (hash) selectVideo(parseInt(hash[1]));
+else renderDetail();
+"""
+
+    # Filter buttons (only show audiences that exist)
+    filter_btns = '<button class="filter-btn active" data-filter="all">Todos</button>'
+    for k in ["cold", "warm", "retargeting"]:
+        if k in aud_counts:
+            m = AUD_META[k]
+            filter_btns += f'<button class="filter-btn" data-filter="{k}" style="border-color:{m["color"]}40">{m["emoji"]} {m["label"]} ({aud_counts[k]})</button>'
+
+    # Top header KPIs
+    aud_pills = ""
+    for k in ["cold", "warm", "retargeting"]:
+        if k in aud_counts:
+            m = AUD_META[k]
+            aud_pills += f'<span class="aud-pill" style="background:{m["color"]}25;border-color:{m["color"]};color:{m["color"]}">{m["emoji"]} {aud_counts[k]}</span>'
 
     out = f'''<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Análisis de ads — {esc(page_name)}</title>
-<style>{CSS}</style>
+<title>{esc(page_name)} — análisis de ads</title>
+<style>{css}</style>
 </head>
 <body>
-<div class="container">
-  <header>
-    <h1>Análisis de ads — {esc(page_name)}</h1>
-    <p class="sub">Página: <a href="https://www.facebook.com/{esc(folder.name)}" target="_blank">facebook.com/{esc(folder.name)}</a> · Generado con Apify + Gemini 3 Flash</p>
-  </header>
-
-  <section>
-    <h2>📊 Resumen</h2>
-    <div class="kpis">{kpi_html}</div>
-
-    <h3>Etapa del funnel</h3>
-    {aud_bar(aud_counts, len(vids))}
-
-    <h3>Distribución por formato</h3>
-    <div class="kpis">{fmt_html}</div>
-
-    <h3>Roles narrativos detectados ({total_scenes} escenas)</h3>
-    {bar_chart(purposes, top=10)}
-  </section>
-
-  <div class="layout">
-    <aside class="toc">
-      <h4>🎬 Creativos ({len(vids)})</h4>
-      {"".join(toc_items)}
-    </aside>
-    <main>
-      <h2>🎞️ Análisis por creativo</h2>
-      {"".join(cards)}
-    </main>
+<div class="top">
+  <div class="brand">{esc(page_name)} <span class="small">facebook.com/{esc(folder.name)}</span></div>
+  <div class="kpis-strip">
+    <div class="kpi-mini"><span class="l">Ads activos</span><span class="v">{len(raw)}</span></div>
+    <div class="kpi-mini"><span class="l">Creativos únicos</span><span class="v">{len(vids)}</span></div>
+    <div class="kpi-mini"><span class="l">Escenas</span><span class="v">{total_scenes}</span></div>
+    <div class="kpi-mini"><span class="l">Funnel</span><span class="aud-pills">{aud_pills}</span></div>
   </div>
-
-  <footer>
-    Generado automáticamente por <a href="https://github.com/dantedelao89/analisis-competencia-ads" style="color:var(--accent2)">competitive-ads-extractor</a> · Apify scraping + Gemini 3 Flash Preview · {len(vids)} videos analizados
-  </footer>
 </div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="search">
+      <input id="search" placeholder="🔍 Buscar título, copy, transcripción..." />
+      <div class="filters">{filter_btns}</div>
+    </div>
+    <div class="video-list" id="video-list"></div>
+  </aside>
+  <main class="detail" id="detail"></main>
+</div>
+<script>window.__DATA__ = {json.dumps(payload, ensure_ascii=False)};</script>
+<script>{js}</script>
 </body>
 </html>'''
 

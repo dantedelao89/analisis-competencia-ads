@@ -53,7 +53,8 @@ Después de ~5 minutos, en la carpeta `competitor-ads/<marca>/` vas a tener:
 
 | Archivo | Qué contiene |
 |---|---|
-| 📊 **`analysis.md`** | Informe completo en español: cada video desglosado **escena por escena** con timestamp, descripción visual, transcripción y traducción al español |
+| 🎨 **`analysis.html`** ⭐ | **Informe visual interactivo** (doble click para abrir en navegador). Videos embebidos, badges de audiencia, escenas colapsables, tema oscuro moderno |
+| 📊 `analysis.md` | Versión texto plano del mismo informe (para editor / GitHub) |
 | 📈 `ads_summary.csv` | Tabla limpia para abrir en Excel / Google Sheets |
 | 💾 `ads_raw.json` | Datos crudos por si querés re-analizar después |
 | 🎞️ `videos/` | Los `.mp4` originales de los ads en HD |

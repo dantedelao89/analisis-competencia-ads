@@ -272,13 +272,29 @@ python3 scripts/classify_audience.py competitor-ads/<marca>
 ```
 Eso clasifica usando el JSON existente sin re-procesar videos (mucho más rápido).
 
-### Paso 6 — generar `analysis.md`
+### Paso 6 — generar `analysis.md` y `analysis.html`
 
 ```bash
-python3 scripts/build_analysis.py competitor-ads/<marca>
+python3 scripts/build_analysis.py competitor-ads/<marca>   # markdown
+python3 scripts/build_html.py competitor-ads/<marca>       # HTML interactivo
 ```
 
-Genera el informe legible con: metadata, transcripciones, traducción al español, **desglose escena por escena con timestamps**, agregado de patrones narrativos.
+Generan dos formatos del mismo informe:
+
+- **`analysis.md`** — texto plano con metadata, transcripciones, traducción al español, **desglose escena por escena con timestamps**, agregado de patrones narrativos. Ideal para leer en el editor o subir a GitHub.
+
+- **`analysis.html`** — informe visual interactivo, autocontenido (un solo archivo). Tema oscuro modernos con:
+  - KPIs con cards
+  - Barra de distribución por funnel (cold/warm/retargeting) con colores
+  - Bar chart de roles narrativos
+  - Cards por creativo con **video embebido** (HTML5 `<video>` reproduce los .mp4 locales)
+  - Badges de audiencia, precio, tono
+  - Razonamiento de la clasificación con chips de señales
+  - Transcripciones colapsables (original + español)
+  - Escenas con timestamp, plano, propósito, visual, audio, texto
+  - Tabla de contenido sticky con links a cada video
+
+Se abre con doble click en cualquier navegador. Es el formato a entregar al alumno.
 
 ### Paso 7 — entregar al alumno
 
@@ -293,7 +309,8 @@ Mostrale los archivos como links clickeables y resumile en 3-5 bullets lo más j
 > - ⚡ <oportunidad para el alumno>
 >
 > **📂 Archivos generados** (abrí el primero):
-> - [analysis.md](competitor-ads/<marca>/analysis.md) ← informe completo escena por escena
+> - [analysis.html](competitor-ads/<marca>/analysis.html) ⭐ **informe visual interactivo (doble click para abrir)**
+> - [analysis.md](competitor-ads/<marca>/analysis.md) ← versión texto / markdown
 > - [ads_summary.csv](competitor-ads/<marca>/ads_summary.csv) ← tabla para Excel
 > - [video_analyses.json](competitor-ads/<marca>/video_analyses.json) ← datos crudos del análisis
 > - [videos/](competitor-ads/<marca>/videos/) ← N videos en .mp4

@@ -25,7 +25,23 @@ El alumno solo tiene que **pegar un link de Facebook** (ej: `https://www.faceboo
 
 ## ⚙️ Setup automático (CRÍTICO — primer paso siempre)
 
-Antes de cualquier extracción, **SIEMPRE** verificá qué claves hay:
+### Paso 0 — Sanear el .env (SIEMPRE primero, antes de validar)
+
+Si el alumno ya creó manualmente un `.env` puede tener errores de formato muy comunes (espacios alrededor del `=`, comillas, CRLF de Windows). **Esto rompe `source .env`** con error tipo `command not found` o `not a valid identifier`. Para evitarlo, corré:
+
+```bash
+python3 scripts/fix_env.py
+```
+
+Esto detecta el `.env` si existe y arregla automáticamente:
+- `GEMINI_API_KEY = AIza...` → `GEMINI_API_KEY=AIza...`
+- `APIFY_TOKEN="apify_api_..."` → `APIFY_TOKEN=apify_api_...`
+- CRLF → LF
+- Espacios al final de línea
+
+**Hacé esto SIEMPRE antes de validar las llaves.** Si el archivo ya está bien, el script no hace nada y lo dice.
+
+### Paso 1 — Verificar qué claves hay
 
 ```bash
 test -f .env && grep -qE "^APIFY_TOKEN=apify_api_" .env && echo "APIFY_OK" || echo "APIFY_FALTA"
@@ -33,6 +49,8 @@ test -f .env && grep -qE "^GEMINI_API_KEY=AIza" .env && echo "GEMINI_OK" || echo
 ```
 
 Según lo que falte, seguí los flujos de abajo. **Pedí UNA credencial a la vez** (primero Apify, después Gemini).
+
+> 💡 Si el `.env` ya existe con ambas llaves válidas (caso del alumno que ya configuró manualmente), **NO le preguntes nada** — solo confirmale brevemente *"Ya detecté tus llaves, arranco"* y seguí con la extracción.
 
 ---
 
@@ -147,17 +165,33 @@ Si solo dijo un nombre de marca:
 - Asumí `country=US` (mayor cobertura de ads).
 - Si la marca es claramente latina (Glovo en AR, Rappi, Mercado Libre), preguntá país en una sola línea: *"¿De qué país buscás los ads? (US, AR, MX, ES, BR...)"*
 
-### Paso 2 — armar la URL de Meta Ad Library
+### Paso 2 — armar la URL para el actor de Apify
 
-**Si tenés URL de página directo** (lo más común):
+⚠️ **REGLA CRÍTICA: el actor `apify/facebook-ads-scraper` acepta URLs de PÁGINA directamente.** NO le digas al alumno que necesitás una URL de Ad Library — eso es FALSO. La página directa funciona perfecto y es el flujo principal de esta skill.
+
+**Formato 1 — URL de página de Facebook** (lo más común, lo que el alumno suele tener):
+
 ```
-https://www.facebook.com/<NombreDeLaPagina>
+https://www.facebook.com/aivideoskool
+https://www.facebook.com/martinvelardefilm
+https://www.facebook.com/profile.php?id=61577852912181
 ```
 
-**Si tenés keyword/marca:**
+✅ Todos estos formatos funcionan directo. El actor los resuelve.
+
+**Formato 2 — URL de búsqueda en Ad Library** (cuando querés buscar por keyword, no por marca):
+
 ```
 https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=<COUNTRY>&q=<KEYWORD>&search_type=keyword_unordered&media_type=all
 ```
+
+**Formato 3 — URL de Ad Library de una página específica** (cuando ya tenés el `view_all_page_id`):
+
+```
+https://www.facebook.com/ads/library/?active_status=active&country=ALL&view_all_page_id=<PAGE_ID>
+```
+
+**Si el alumno te pasa cualquiera de los 3 formatos → usá esa URL tal cual en `startUrls`.** No le pidas que la transforme. No le digas que no sirve. **Solo pásala al actor y funciona.**
 
 ### Paso 3 — extraer con Apify
 

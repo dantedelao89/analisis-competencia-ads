@@ -41,15 +41,17 @@ claude
 ### Paso 4 — Copia y pega este mensaje en Claude
 
 ```
-Clona este repositorio en mi carpeta actual y mueve todos los archivos
-(incluyendo la carpeta .claude) a la raíz del proyecto:
+Clona este repositorio directamente en mi carpeta actual (sin crear
+subcarpeta — usa el punto al final del comando git clone):
 
 https://github.com/dantedelao89/analisis-competencia-ads
 
 Después dime qué necesitas de mí para empezar.
 ```
 
-Claude va a clonar el repo y te va a pedir **dos llaves gratuitas** (Apify + Gemini). Te guía paso a paso en el chat. **Tú no tocas ningún archivo.**
+Claude va a ejecutar `git clone https://github.com/dantedelao89/analisis-competencia-ads.git .` (con el punto al final), lo que deja todos los archivos directamente en tu carpeta sin crear una subcarpeta.
+
+Después te va a pedir **dos llaves gratuitas** (Apify + Gemini). Te guía paso a paso en el chat. **Tú no tocas ningún archivo.**
 
 ### Paso 5 — Pásale el link de tu competidor
 

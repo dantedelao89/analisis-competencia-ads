@@ -87,54 +87,69 @@ test -f .env && grep -qE "^GEMINI_API_KEY=AIza" .env && echo "GEMINI_OK" || echo
 
 > 👋 ¡Bienvenido! Antes de poder analizar a tus competidores, necesitas configurar dos llaves gratuitas. Hazlo así:
 >
-> ### 📋 Paso 1 — Renombra el archivo de ejemplo
+> ### 📋 Paso 1 — Renombra el archivo de ejemplo a `.env`
 >
-> En tu carpeta del proyecto vas a encontrar un archivo llamado `.env.example`. **Cámbiale el nombre a `.env`** (sin el `.example`).
+> En tu carpeta del proyecto vas a encontrar un archivo llamado **`.env.example`**. **Cámbiale el nombre a `.env`** (quita el `.example`).
+>
+> - En Mac/Linux: en la Terminal corre `mv .env.example .env`
+> - En Windows: click derecho → Renombrar → déjalo como `.env`
+> - En VS Code / tu editor: click derecho sobre el archivo → Renombrar
 >
 > ### 🔑 Paso 2 — Consigue tus 2 llaves gratuitas
 >
-> **Apify** (para descargar los anuncios):
+> **🔵 Apify** (para descargar los anuncios de Facebook):
 > 1. Crea cuenta gratis en https://console.apify.com/sign-up
 > 2. Ve a https://console.apify.com/settings/integrations
 > 3. Copia el token que empieza con `apify_api_...`
 >
-> **Google Gemini** (para analizar los videos):
+> **🟡 Google Gemini** (para analizar los videos):
 > 1. Entra a https://aistudio.google.com/apikey
 > 2. Haz click en **"Create API key"**
 > 3. Copia la llave (empieza con `AIza...`)
 >
-> ### 📝 Paso 3 — Pega las llaves en el archivo `.env`
+> ### 📝 Paso 3 — Pega las dos llaves dentro del archivo `.env`
 >
-> Abre el archivo `.env` con cualquier editor de texto (TextEdit en Mac, Notepad en Windows, o el editor de tu Claude Code). Vas a ver dos líneas — reemplaza los placeholders con tus llaves reales:
+> Abre el archivo `.env` con cualquier editor de texto (TextEdit en Mac, Notepad en Windows, o tu VS Code). Vas a ver dos líneas — **reemplaza los placeholders con tus llaves reales**, dejando el formato exacto:
 >
 > ```
 > APIFY_TOKEN=apify_api_aqui_va_tu_token
 > GEMINI_API_KEY=AIza_aqui_va_tu_llave
 > ```
 >
-> ⚠️ **Importante:** sin espacios alrededor del `=`, sin comillas alrededor de las llaves. Si te equivocas, no te preocupes, yo lo arreglo automáticamente.
+> ⚠️ Sin espacios alrededor del `=`, sin comillas. Si te equivocas con el formato, no te preocupes — yo lo arreglo automáticamente.
 >
-> ### ✅ Paso 4 — Avísame cuando termines
+> ### ✅ Paso 4 — CONFÍRMAME cuando hayas terminado
 >
-> Cuando hayas guardado el archivo, **escríbeme "listo"** o "ya está", y yo valido que todo esté bien antes de continuar.
+> Cuando ya hayas (1) renombrado el archivo a `.env` y (2) pegado tus dos llaves dentro, **escríbeme literalmente "listo"** (o "ya está", "terminé", "ok"). En cuanto me confirmes, yo abro el archivo, reviso que las llaves estén bien escritas, arreglo cualquier espacio o error de formato, y valido contra Apify y Google que de verdad funcionen. Si algo está mal te aviso para que lo corrijas.
 
-**ESPERA SU CONFIRMACIÓN.** No corras nada más hasta que el alumno diga "listo", "ya está" o algo similar.
+**🛑 ESPERA SU CONFIRMACIÓN EXPLÍCITA.** No ejecutes NADA más hasta que el alumno diga "listo", "ya está", "terminé", "ok" o similar. NO valides el `.env` antes de que confirme — podrías leerlo a medio editar.
 
 ---
 
-### Paso 2 — Auto-fix y validación (después de que el alumno confirme)
+### Paso 2 — Auto-fix y validación (SOLO después de que el alumno confirme "listo")
 
 Cuando el alumno confirme que ya configuró el `.env`, ejecuta estos comandos en orden:
 
 ```bash
-# 1. Saneamiento automático del .env
+# 0. Primero verifica que el archivo .env exista (puede que renombró mal)
+test -f .env && echo "ENV_OK" || echo "ENV_MISSING"
+ls -la .env.example .env 2>/dev/null
+```
+
+Si el archivo `.env` NO existe pero `.env.example` sí existe:
+> Veo que el archivo sigue llamándose `.env.example`. **Necesito que le quites el `.example`** para que quede solo como `.env`. ¿Lo renombro yo por ti?
+
+Si el alumno dice que sí (o lo hace él mismo), ejecuta `mv .env.example .env` solo si tiene contenido real (no placeholders). Si todavía tiene placeholders, recuérdale pegar sus llaves reales primero.
+
+```bash
+# 1. Saneamiento automático del .env (arregla espacios, comillas, CRLF, etc.)
 python3 scripts/fix_env.py
 
 # 2. Validar formato de las llaves
 test -f .env && grep -qE "^APIFY_TOKEN=apify_api_" .env && echo "APIFY_FORMAT_OK" || echo "APIFY_FORMAT_BAD"
 test -f .env && grep -qE "^GEMINI_API_KEY=AIza" .env && echo "GEMINI_FORMAT_OK" || echo "GEMINI_FORMAT_BAD"
 
-# 3. Validar que las llaves funcionen contra los servicios
+# 3. Validar que las llaves funcionen REALMENTE contra los servicios
 set -a && source .env && set +a
 APIFY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.apify.com/v2/users/me?token=$APIFY_TOKEN")
 GEMINI_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY")
@@ -143,23 +158,28 @@ echo "GEMINI: $GEMINI_STATUS"
 ```
 
 **Interpretación:**
-- APIFY: `200` = funciona · cualquier otra cosa = inválido
-- GEMINI: `200` = funciona · `400/403` = inválido
+- APIFY: `200` = funciona · `401` = token mal · `402` = sin saldo · otro = inválido
+- GEMINI: `200` = funciona · `400/403` = llave inválida
 
-**Si alguna falla:**
-> Mmm, la llave de **[Apify/Gemini]** no me responde. ¿Puedes verificar que la copiaste correcta desde [link]? Pégala de nuevo en el `.env` y avísame.
+**`fix_env.py` arregla automáticamente:** espacios alrededor del `=`, comillas envolventes (`"..."` o `'...'`), espacios al final de línea, saltos CRLF de Windows. **No tienes que pedirle al alumno que corrija formato — el script lo hace.** Solo le pides corregir si la llave en sí es inválida.
 
-**Si ambas funcionan:**
+**Si APIFY_FORMAT_BAD o GEMINI_FORMAT_BAD:** el placeholder sigue ahí o pegó algo mal.
+> Veo que la llave de **[Apify/Gemini]** todavía tiene el placeholder o algo raro. ¿Puedes abrir el archivo `.env` otra vez y verificar que la línea diga `APIFY_TOKEN=apify_api_...` (o `GEMINI_API_KEY=AIza...`) con tu llave real? Pégala de nuevo y avísame.
+
+**Si APIFY != 200 o GEMINI != 200:** la llave tiene formato correcto pero el servicio la rechaza.
+> Mmm, la llave de **[Apify/Gemini]** tiene buen formato pero el servidor me devuelve `[código]`. Suele significar que la copiaste incompleta o que es de otra cuenta. ¿La sacas de nuevo de [link directo] y la pegas en `.env`? Cuando termines, dime "listo" otra vez.
+
+**Si ambas devuelven 200:**
 > ✅ ¡Perfecto, las dos llaves están funcionando!
 >
-> Ahora pásame el **link de la página de Facebook del competidor** que quieres analizar. Por ejemplo:
+> Ahora **pásame el link de la página de Facebook del competidor** que quieres analizar. Funciona con cualquiera de estos formatos:
 > - `https://www.facebook.com/notion`
 > - `https://www.facebook.com/martinvelardefilm`
 > - `https://www.facebook.com/profile.php?id=61577852912181`
 >
-> Cualquiera de estos formatos funciona.
+> ⚠️ **No necesitas la URL de la Ad Library** — solo dame la página normal del competidor y yo me encargo del resto.
 
-**ESPERA EL LINK.** No avances hasta tener el link.
+**🛑 ESPERA EL LINK.** No avances hasta tener el link de la página de Facebook.
 
 ---
 

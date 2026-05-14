@@ -10,12 +10,12 @@ KEY = os.environ["GEMINI_API_KEY"]
 MODEL = "gemini-3-flash-preview"
 ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL}:generateContent?key={KEY}"
 
-PROMPT = """Sos un analista de paid ads. Te paso un video de un anuncio. Devolveme EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin comentarios) con este schema:
+PROMPT = """Eres un analista de paid ads. Te paso un video de un anuncio. Devuélveme EXCLUSIVAMENTE un objeto JSON válido (sin markdown, sin comentarios) con este schema:
 
 {
   "detected_language": "código ISO 639-1 (ej: 'en', 'es', 'pt')",
   "transcript_original": "transcripción literal completa del audio en idioma original",
-  "transcript_es": "traducción natural al español rioplatense; si detected_language == 'es' devolvé null",
+  "transcript_es": "traducción natural al español neutral mexicano (usa 'tú', NUNCA 'vos/tenés/sos'); si detected_language == 'es' devuelve null",
   "scenes_breakdown": [
     {
       "scene_number": 1,
@@ -23,7 +23,7 @@ PROMPT = """Sos un analista de paid ads. Te paso un video de un anuncio. Devolve
       "timestamp_end": "0:03",
       "visual": "descripción detallada de qué se ve: encuadre, personas, ambiente, ropa, gestos, transiciones",
       "audio_dialogue": "qué dice exactamente la voz en esta escena (idioma original)",
-      "audio_dialogue_es": "qué dice traducido al español rioplatense; null si ya estaba en español",
+      "audio_dialogue_es": "qué dice traducido al español neutral mexicano (usa 'tú'); null si ya estaba en español",
       "on_screen_text": "texto que aparece en pantalla en esta escena específica (o '' si no hay)",
       "shot_type": "primer plano / plano medio / plano general / inserto de UI / texto pleno / etc.",
       "purpose": "rol narrativo: hook / pain / solución / demo / oferta / objeción / CTA / social proof"
@@ -49,12 +49,12 @@ Definiciones de audience_temperature:
 - warm (MOFU): la persona ya vio algo de la marca. Demos del producto, casos de uso específicos, testimonios. Habla del cómo más que del qué. Asume cierto contexto.
 - retargeting (BOFU): la persona ya interactuó. Asume conocimiento total del producto. Corto, directo. Urgencia/escasez ("last chance", "Black Friday"), descuentos específicos, recordatorios, CTA imperativo simple.
 
-Si tenés dudas, elegí cold con confidence: low.
+Si tienes dudas, elige cold con confidence: low.
 
 Reglas importantes:
 - scenes_breakdown debe ser una secuencia ORDENADA por timestamp con TODAS las escenas relevantes (típicamente 5-15 escenas en un ad de 20-60s; si hay un cambio de plano significativo es una escena nueva).
 - Los timestamps son aproximados pero ordenados (formato 'm:ss' o 's').
-- audio_dialogue es lo que se DICE en esa escena específica, no toda la transcripción. Si la escena no tiene diálogo (silencio, música), poné "".
+- audio_dialogue es lo que se DICE en esa escena específica, no toda la transcripción. Si la escena no tiene diálogo (silencio, música), pon "".
 - on_screen_text es el texto literal de esa escena, no acumulado.
 - transcript_original es la transcripción global continua; scenes_breakdown la disecciona por escena.
 - Si el audio está vacío o solo música, transcript_original = "" y detected_language = null."""

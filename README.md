@@ -39,7 +39,7 @@ Y Claude te entrega, automáticamente:
 - **YouTube Ads**
 - **LinkedIn Ads**
 
-Si querés analizar otras fuentes, podés cambiar el "actor" de Apify que usamos en `scripts/process_all_videos.py` (línea del `curl` que llama a `apify~facebook-ads-scraper`). Hay actors de TikTok, LinkedIn y YouTube en el [marketplace de Apify](https://apify.com/store).
+Si quieres analizar otras fuentes, podés cambiar el "actor" de Apify que usamos en `scripts/process_all_videos.py` (línea del `curl` que llama a `apify~facebook-ads-scraper`). Hay actors de TikTok, LinkedIn y YouTube en el [marketplace de Apify](https://apify.com/store).
 
 ---
 
@@ -74,7 +74,7 @@ Por ejemplo en tu escritorio, llamala `analisis-competencia` o como quieras. Esa
 
 ### 3️⃣ Abrí Claude Code en esa carpeta
 
-Abrí una terminal (Terminal en Mac, PowerShell en Windows), navegá a la carpeta y escribí:
+Abre una terminal (Terminal en Mac, PowerShell en Windows), navegá a la carpeta y escribí:
 
 ```bash
 claude
@@ -93,9 +93,9 @@ analizar anuncios de competidores en Facebook e Instagram.
 Por favor:
 1. Cloná este repo público en la carpeta actual:
    https://github.com/dantedelao89/analisis-competencia-ads
-2. Movemé todos los archivos del repo (incluyendo la carpeta .claude)
+2. Mueve todos los archivos del repo (incluyendo la carpeta .claude)
    a la raíz de mi proyecto.
-3. Después contame qué necesitás de mí para empezar a analizar.
+3. Después cuentame qué necesitas de mí para empezar a analizar.
 ```
 
 Claude va a:
@@ -164,7 +164,7 @@ Te crea `dashboard.html` en la raíz del proyecto con timeline, comparativa lado
 
 ---
 
-## 💡 Qué le podés pedir a Claude
+## 💡 Qué le puedes pedir a Claude
 
 Una vez que está todo configurado, podés pedirle cualquiera de estas cosas en castellano natural:
 

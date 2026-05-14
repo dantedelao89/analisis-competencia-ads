@@ -1,224 +1,211 @@
 ---
 name: competitive-ads-extractor
-description: Extrae anuncios reales de competidores desde Meta Ad Library (Facebook + Instagram) usando Apify, descarga los videos y los analiza con Gemini 3 Flash Preview (transcripción + traducción al español + desglose escena por escena con timestamp + visual + audio + on-screen text + rol narrativo). Úsalo cuando el usuario pegue un link de Facebook, mencione una marca/competidor, o pida "extraé ads", "analizá la publicidad de X", "qué está corriendo X", "scrapeá ads", "bajame los videos", "transcribime los videos", "qué dicen los videos" o cualquier variante.
+description: Extrae anuncios reales de competidores desde Meta Ad Library (Facebook + Instagram) usando Apify, descarga los videos y los analiza con Gemini 3 Flash Preview (transcripción + traducción al español + desglose escena por escena con timestamp + visual + audio + on-screen text + rol narrativo). Úsalo cuando el usuario pegue un link de Facebook (incluyendo facebook.com/<página>, facebook.com/profile.php?id=..., o cualquier formato de página de Facebook), mencione una marca/competidor, o pida "extrae ads", "analiza la publicidad de X", "qué está corriendo X", "scrapea ads", "bájame los videos", "transcríbeme los videos", "qué dicen los videos" o cualquier variante.
 ---
 
 # Competitive Ads Extractor
 
-> ⚠️ **EL USUARIO ES 100% PRINCIPIANTE.** Nunca le pidas que abra una terminal, edite archivos, ni toque código. **Vos hacés TODO**. Si falta algo, **preguntale en el chat** con lenguaje cálido, links clickeables y pasos numerados.
+> ⚠️ **EL USUARIO ES 100% PRINCIPIANTE.** No le pidas que abra una terminal extra, ni que ejecute comandos. **Tú haces TODO.**
+
+> 🇲🇽 **IDIOMA: ESPAÑOL NEUTRAL MEXICANO.** Usa "tú", "puedes", "haz", "dile", "necesitas". **NUNCA uses "vos", "tenés", "decís", "podés", "andá", "hacé".**
 
 ---
 
-## 🎯 Flujo ultra-simple (objetivo del alumno)
+## 🚨 REGLAS CRÍTICAS (lee antes de hacer cualquier cosa)
 
-El alumno solo tiene que **pegar un link de Facebook** (ej: `https://www.facebook.com/aivideoskool`) o nombrar una marca. Vos te encargás del resto:
+### REGLA 1 — Las llaves SIEMPRE están en `.env`, NUNCA en el shell environment
 
-1. Detectás qué credenciales faltan en `.env` y las pedís conversacionalmente.
-2. Extraés los ads activos con Apify.
-3. Descargás los videos y los analizás con Gemini Flash 3.
-4. Generás un informe escena-por-escena en español.
-5. Le entregás todo con un resumen ejecutivo.
-
-**Si el alumno solo pega una URL de Facebook como primer mensaje, NO le hagas preguntas innecesarias. Asumí que quiere análisis completo y arrancá el setup.**
-
----
-
-## ⚙️ Setup automático (CRÍTICO — primer paso siempre)
-
-### Paso 0 — Sanear el .env (SIEMPRE primero, antes de validar)
-
-Si el alumno ya creó manualmente un `.env` puede tener errores de formato muy comunes (espacios alrededor del `=`, comillas, CRLF de Windows). **Esto rompe `source .env`** con error tipo `command not found` o `not a valid identifier`. Para evitarlo, corré:
-
+❌ **NO hagas esto:**
 ```bash
-python3 scripts/fix_env.py
+echo $APIFY_TOKEN  # ← INCORRECTO, el shell environment está vacío cada vez
 ```
 
-Esto detecta el `.env` si existe y arregla automáticamente:
-- `GEMINI_API_KEY = AIza...` → `GEMINI_API_KEY=AIza...`
-- `APIFY_TOKEN="apify_api_..."` → `APIFY_TOKEN=apify_api_...`
-- CRLF → LF
-- Espacios al final de línea
+✅ **SIEMPRE haz esto antes de usar las llaves:**
+```bash
+set -a && source .env && set +a
+```
 
-**Hacé esto SIEMPRE antes de validar las llaves.** Si el archivo ya está bien, el script no hace nada y lo dice.
+Cada llamada a `Bash` que ejecutes es una sesión nueva. **Las variables NO persisten entre llamadas.** Por lo tanto, **antes de cada comando que necesite las llaves, debes cargar el .env explícitamente.**
 
-### Paso 1 — Verificar qué claves hay
+### REGLA 2 — Las URLs de página de Facebook SÍ funcionan directamente
+
+El actor `apify/facebook-ads-scraper` acepta TODOS estos formatos sin transformación:
+
+```
+✅ https://www.facebook.com/aivideoskool
+✅ https://www.facebook.com/martinvelardefilm
+✅ https://www.facebook.com/profile.php?id=61577852912181
+✅ https://www.facebook.com/ads/library/?...&q=keyword
+✅ https://www.facebook.com/ads/library/?...&view_all_page_id=...
+```
+
+❌ **NUNCA le digas al alumno** *"esa URL es la página, no la Ad Library, necesito el formato facebook.com/ads/library/..."*. **ESO ES FALSO.** El actor resuelve la página directamente.
+
+Si el alumno te pasa `facebook.com/martinvelardefilm` → úsalo TAL CUAL en `startUrls`.
+
+### REGLA 3 — Flujo lineal estricto después del clone
+
+Cuando el alumno acabe de clonar el repo, **sigue este flujo en este orden exacto. No te saltes pasos.**
+
+1. **Pídele que configure el `.env`** (instrucciones abajo)
+2. **Espera su confirmación** ("ya lo hice", "listo", "ok")
+3. **Valida las llaves** con `fix_env.py` + grep
+4. **Confírmale que están bien** y pídele el link del competidor
+5. **Recibe el link** (cualquier formato de Facebook) y ejecuta el pipeline
+
+NO le pidas el link antes de tener las llaves validadas. NO le pidas las llaves "exportadas en el shell".
+
+---
+
+## 🎬 FLUJO COMPLETO PASO A PASO
+
+### Paso 0 — Detecta dónde estás parado
+
+Cuando el alumno inicia conversación o pega un link, antes de hacer cualquier cosa, verifica el estado del proyecto:
 
 ```bash
+# ¿Existe el .env?
+test -f .env && echo "ENV_EXISTS" || echo "ENV_MISSING"
+# Si existe, ¿tiene las llaves?
 test -f .env && grep -qE "^APIFY_TOKEN=apify_api_" .env && echo "APIFY_OK" || echo "APIFY_FALTA"
 test -f .env && grep -qE "^GEMINI_API_KEY=AIza" .env && echo "GEMINI_OK" || echo "GEMINI_FALTA"
 ```
 
-Según lo que falte, seguí los flujos de abajo. **Pedí UNA credencial a la vez** (primero Apify, después Gemini).
+**Decide el flujo según el resultado:**
 
-> 💡 Si el `.env` ya existe con ambas llaves válidas (caso del alumno que ya configuró manualmente), **NO le preguntes nada** — solo confirmale brevemente *"Ya detecté tus llaves, arranco"* y seguí con la extracción.
-
----
-
-### 🔵 Si falta APIFY_TOKEN → onboarding Apify
-
-**No corras nada todavía.** Mostrale exactamente este mensaje (adaptá al tono del chat):
-
-> 👋 ¡Hola! Voy a analizar los ads de tu competidor. Antes de arrancar necesito **2 llaves gratuitas** (te guío paso a paso). Empecemos por la primera:
->
-> ### 🔑 1 de 2 — Token de Apify
->
-> Apify es la herramienta que se mete en la Facebook Ad Library y baja los anuncios por nosotros. Es gratis y te regalan saldo al registrarte.
->
-> **Hacé esto (3 minutos):**
->
-> 1️⃣ Abrí 👉 https://console.apify.com/sign-up
->    *(Click en "Sign up with Google" — es 1 solo click, sin tarjeta de crédito)*
->
-> 2️⃣ Una vez adentro, abrí 👉 https://console.apify.com/settings/integrations
->
-> 3️⃣ Vas a ver una caja que dice **"Personal API tokens"** con un token que empieza con `apify_api_...`. Clickeá el ícono de copiar (📋) al lado.
->
-> 4️⃣ **Pegámelo acá en el chat** y yo lo guardo. ✅
->
-> *💰 Te regalan ~$5 USD gratis. Cada análisis cuesta menos de $0.01 USD, así que te alcanza para analizar miles de marcas.*
-
-Cuando el alumno te pegue el token (formato: `apify_api_` + letras/números):
-
-1. **Validalo silenciosamente:**
-   ```bash
-   curl -s -o /dev/null -w "%{http_code}" "https://api.apify.com/v2/users/me?token=<TOKEN_PEGADO>"
-   ```
-   - `200` → válido, seguir.
-   - cualquier otro código → decile amablemente: *"Mmm, parece que se copió mal o le falta algún carácter. ¿Me lo pegás de nuevo?"*
-
-2. **Guardalo en `.env`** (append, NUNCA sobreescribir):
-   ```bash
-   echo "APIFY_TOKEN=<TOKEN>" >> .env
-   ```
-   Si `.gitignore` no existe, creá uno con `.env`, `competitor-ads/`, `*.log` adentro.
-
-3. **Pasá al siguiente paso** con este mensaje:
-
-> ✅ ¡Perfecto, Apify listo! Ahora la segunda y última llave:
+| Estado | Qué hacer |
+|---|---|
+| ENV_MISSING | Ir a **Paso 1** (guía de creación del .env) |
+| ENV_EXISTS pero alguna falta | Ir a **Paso 2** (auto-fix y validación) |
+| Ambas OK | Ir directo al **Paso 3** (pedir URL del competidor) |
 
 ---
 
-### 🟣 Si falta GEMINI_API_KEY → onboarding Gemini
+### Paso 1 — Guía al alumno a crear el `.env` (si no existe)
 
-> ### 🔑 2 de 2 — API key de Google Gemini
->
-> Gemini es el cerebro que mira los videos y te dice **qué pasa en cada escena, qué dice cada persona, qué texto aparece en pantalla, traducido al español**. También es gratis con cuota generosa.
->
-> **Hacé esto (2 minutos):**
->
-> 1️⃣ Abrí 👉 https://aistudio.google.com/apikey
->    *(logueate con tu Gmail — sin instalación, sin tarjeta)*
->
-> 2️⃣ Click en el botón azul **"Create API key"** (o "Crear clave de API").
->
-> 3️⃣ Te aparece una clave que empieza con `AIza...`. Click en el ícono de copiar (📋).
->
-> 4️⃣ **Pegámela acá en el chat** ✅
->
-> *🎁 Plan gratuito: 1.500 requests por día. Cada video cuesta 1 request, así que podés analizar cientos de ads gratis.*
+**Dile EXACTAMENTE este mensaje** (adáptalo al tono pero mantén la estructura):
 
-Cuando la pegue:
-
-1. **Validá:**
-   ```bash
-   curl -s -o /dev/null -w "%{http_code}" "https://generativelanguage.googleapis.com/v1beta/models?key=<KEY>"
-   ```
-   - `200` → válida.
-   - `400/403` → *"Esa clave no me la acepta Google. ¿La pegás de nuevo desde aistudio.google.com/apikey?"*
-
-2. **Guardala:**
-   ```bash
-   echo "GEMINI_API_KEY=<KEY>" >> .env
-   ```
-
-3. **Confirmá y arrancá el análisis sin pedir más nada:**
-
-> 🎉 ¡Listo, todo configurado! Ya tengo Apify + Gemini funcionando.
+> 👋 ¡Bienvenido! Antes de poder analizar a tus competidores, necesitas configurar dos llaves gratuitas. Hazlo así:
 >
-> Ahora arranco con el análisis de **<marca>**. Va a tardar unos 5 minutos:
-> - 🔍 Extraigo los ads activos (~1 min)
-> - 📥 Descargo los videos (~1 min)
-> - 🎬 Los analizo escena por escena con Gemini (~3 min)
-> - 📊 Te entrego el informe completo
+> ### 📋 Paso 1 — Renombra el archivo de ejemplo
 >
-> Aguantame un cachito... ⏳
+> En tu carpeta del proyecto vas a encontrar un archivo llamado `.env.example`. **Cámbiale el nombre a `.env`** (sin el `.example`).
+>
+> ### 🔑 Paso 2 — Consigue tus 2 llaves gratuitas
+>
+> **Apify** (para descargar los anuncios):
+> 1. Crea cuenta gratis en https://console.apify.com/sign-up
+> 2. Ve a https://console.apify.com/settings/integrations
+> 3. Copia el token que empieza con `apify_api_...`
+>
+> **Google Gemini** (para analizar los videos):
+> 1. Entra a https://aistudio.google.com/apikey
+> 2. Haz click en **"Create API key"**
+> 3. Copia la llave (empieza con `AIza...`)
+>
+> ### 📝 Paso 3 — Pega las llaves en el archivo `.env`
+>
+> Abre el archivo `.env` con cualquier editor de texto (TextEdit en Mac, Notepad en Windows, o el editor de tu Claude Code). Vas a ver dos líneas — reemplaza los placeholders con tus llaves reales:
+>
+> ```
+> APIFY_TOKEN=apify_api_aqui_va_tu_token
+> GEMINI_API_KEY=AIza_aqui_va_tu_llave
+> ```
+>
+> ⚠️ **Importante:** sin espacios alrededor del `=`, sin comillas alrededor de las llaves. Si te equivocas, no te preocupes, yo lo arreglo automáticamente.
+>
+> ### ✅ Paso 4 — Avísame cuando termines
+>
+> Cuando hayas guardado el archivo, **escríbeme "listo"** o "ya está", y yo valido que todo esté bien antes de continuar.
+
+**ESPERA SU CONFIRMACIÓN.** No corras nada más hasta que el alumno diga "listo", "ya está" o algo similar.
 
 ---
 
-### 🟢 Si todo OK → cargar variables y arrancar
+### Paso 2 — Auto-fix y validación (después de que el alumno confirme)
+
+Cuando el alumno confirme que ya configuró el `.env`, ejecuta estos comandos en orden:
 
 ```bash
-set -a; source .env; set +a
+# 1. Saneamiento automático del .env
+python3 scripts/fix_env.py
+
+# 2. Validar formato de las llaves
+test -f .env && grep -qE "^APIFY_TOKEN=apify_api_" .env && echo "APIFY_FORMAT_OK" || echo "APIFY_FORMAT_BAD"
+test -f .env && grep -qE "^GEMINI_API_KEY=AIza" .env && echo "GEMINI_FORMAT_OK" || echo "GEMINI_FORMAT_BAD"
+
+# 3. Validar que las llaves funcionen contra los servicios
+set -a && source .env && set +a
+APIFY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://api.apify.com/v2/users/me?token=$APIFY_TOKEN")
+GEMINI_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY")
+echo "APIFY: $APIFY_STATUS"
+echo "GEMINI: $GEMINI_STATUS"
 ```
 
-NO menciones esto al alumno. Hacelo en silencio.
+**Interpretación:**
+- APIFY: `200` = funciona · cualquier otra cosa = inválido
+- GEMINI: `200` = funciona · `400/403` = inválido
+
+**Si alguna falla:**
+> Mmm, la llave de **[Apify/Gemini]** no me responde. ¿Puedes verificar que la copiaste correcta desde [link]? Pégala de nuevo en el `.env` y avísame.
+
+**Si ambas funcionan:**
+> ✅ ¡Perfecto, las dos llaves están funcionando!
+>
+> Ahora pásame el **link de la página de Facebook del competidor** que quieres analizar. Por ejemplo:
+> - `https://www.facebook.com/notion`
+> - `https://www.facebook.com/martinvelardefilm`
+> - `https://www.facebook.com/profile.php?id=61577852912181`
+>
+> Cualquiera de estos formatos funciona.
+
+**ESPERA EL LINK.** No avances hasta tener el link.
 
 ---
 
-## 🚀 Pipeline de extracción y análisis
+### Paso 3 — Pipeline de extracción y análisis
 
-### Paso 1 — entender qué quiere
+Cuando el alumno te pase el link, ejecuta el pipeline. **SIEMPRE** carga el `.env` al inicio de cada bash:
 
-Si el alumno pegó una URL `facebook.com/<algo>` → extraela y usala directo. **No preguntes país, no preguntes cantidad — usá los defaults.**
+#### 3.1 — Crear carpeta y extraer ads con Apify
 
-Si solo dijo un nombre de marca:
-- Asumí `country=US` (mayor cobertura de ads).
-- Si la marca es claramente latina (Glovo en AR, Rappi, Mercado Libre), preguntá país en una sola línea: *"¿De qué país buscás los ads? (US, AR, MX, ES, BR...)"*
-
-### Paso 2 — armar la URL para el actor de Apify
-
-⚠️ **REGLA CRÍTICA: el actor `apify/facebook-ads-scraper` acepta URLs de PÁGINA directamente.** NO le digas al alumno que necesitás una URL de Ad Library — eso es FALSO. La página directa funciona perfecto y es el flujo principal de esta skill.
-
-**Formato 1 — URL de página de Facebook** (lo más común, lo que el alumno suele tener):
-
-```
-https://www.facebook.com/aivideoskool
-https://www.facebook.com/martinvelardefilm
-https://www.facebook.com/profile.php?id=61577852912181
-```
-
-✅ Todos estos formatos funcionan directo. El actor los resuelve.
-
-**Formato 2 — URL de búsqueda en Ad Library** (cuando querés buscar por keyword, no por marca):
-
-```
-https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=<COUNTRY>&q=<KEYWORD>&search_type=keyword_unordered&media_type=all
-```
-
-**Formato 3 — URL de Ad Library de una página específica** (cuando ya tenés el `view_all_page_id`):
-
-```
-https://www.facebook.com/ads/library/?active_status=active&country=ALL&view_all_page_id=<PAGE_ID>
-```
-
-**Si el alumno te pasa cualquiera de los 3 formatos → usá esa URL tal cual en `startUrls`.** No le pidas que la transforme. No le digas que no sirve. **Solo pásala al actor y funciona.**
-
-### Paso 3 — extraer con Apify
+Sluggea el nombre de la marca a partir de la URL:
+- `facebook.com/martinvelardefilm` → slug = `martinvelardefilm`
+- `facebook.com/profile.php?id=12345` → slug temporal = `_tmp_12345` (renombrar después usando `pageName` del response)
 
 ```bash
-set -a; source .env; set +a
-mkdir -p competitor-ads/<marca-slug>
+set -a && source .env && set +a
+mkdir -p competitor-ads/<slug>
 
-curl -s "https://api.apify.com/v2/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items?token=$APIFY_TOKEN" \
+curl -s -w "HTTP %{http_code} en %{time_total}s\n" \
+  "https://api.apify.com/v2/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items?token=$APIFY_TOKEN" \
   -X POST -H 'Content-Type: application/json' \
   -d '{
-    "startUrls": [{"url": "<URL>"}],
+    "startUrls": [{"url": "<LINK_QUE_PEGÓ_EL_ALUMNO>"}],
     "resultsLimit": 200,
     "isDetailsPerAd": true,
     "includeAboutPage": true,
     "activeStatus": "active"
   }' \
-  -o competitor-ads/<marca-slug>/ads_raw.json
+  -o competitor-ads/<slug>/ads_raw.json
 ```
 
-**Defaults:** `resultsLimit: 200` con `activeStatus: "active"` — trae todos los ads activos sin volar el presupuesto. Solo bajá a 30-50 si el alumno pide algo rápido o si la marca tiene cientos de ads.
+**IMPORTANTE:** el campo `startUrls` recibe el link de la página tal cual lo pegó el alumno. **NO lo transformes.**
 
-### Paso 4 — generar CSV (rápido)
+#### 3.2 — Si hay > 50 ads, filtrar a top long-runners
+
+```bash
+python3 scripts/filter_top_ads.py competitor-ads/<slug> 30
+```
+
+(Solo si la marca tiene más de 50 ads activos — si tiene menos, sáltate este paso.)
+
+#### 3.3 — Generar CSV
 
 ```bash
 python3 -c "
 import json, csv
-d = json.load(open('competitor-ads/<marca>/ads_raw.json'))
+d = json.load(open('competitor-ads/<slug>/ads_raw.json'))
 rows = []
 for ad in d:
     s = ad.get('snapshot') or {}
@@ -237,119 +224,55 @@ for ad in d:
         'copy': body.replace(chr(10),' / '),
         'videoHdUrl': (vids[0] or {}).get('videoHdUrl','') if vids else '',
     })
-import csv
-with open('competitor-ads/<marca>/ads_summary.csv','w',newline='',encoding='utf-8') as f:
+with open('competitor-ads/<slug>/ads_summary.csv','w',newline='',encoding='utf-8') as f:
     w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
-print(len(rows))
+print(f'CSV: {len(rows)} filas')
 "
 ```
 
-### Paso 5 — descargar videos + análisis con Gemini
-
-**Por defecto siempre hacelo.** El video es donde está la info más valiosa (precio real, hooks, escenas, on-screen text). El copy escrito solo es la punta del iceberg.
+#### 3.4 — Descargar videos + análisis con Gemini
 
 ```bash
-python3 scripts/process_all_videos.py competitor-ads/<marca>
+python3 scripts/process_all_videos.py competitor-ads/<slug>
 ```
 
-Esto:
-1. Lee `ads_raw.json`.
-2. Deduplica videos (varios ads usan el mismo creativo).
-3. Descarga los `.mp4` SD a `videos/`.
-4. Por cada video llama a `gemini-3-flash-preview` con prompt estructurado.
-5. Guarda `video_analyses.json`.
-
-**Schema del output por video:**
-
-```jsonc
-{
-  "detected_language": "en",                    // ISO 639-1
-  "transcript_original": "...",                 // transcripción global continua
-  "transcript_es": "...",                       // traducción ES; null si ya está en español
-  "scenes_breakdown": [                         // ⭐ lo más valioso
-    {
-      "scene_number": 1,
-      "timestamp_start": "0:00",
-      "timestamp_end": "0:03",
-      "visual": "encuadre + qué se ve + ambiente + ropa + gestos",
-      "audio_dialogue": "qué dice la voz EN ESTA escena",
-      "audio_dialogue_es": "traducción rioplatense",
-      "on_screen_text": "texto literal de esta escena",
-      "shot_type": "primer plano / plano medio / plano general / inserto UI",
-      "purpose": "hook / pain / solución / demo / oferta / objeción / CTA / social proof"
-    }
-  ],
-  "hook_first_3s": "resumen del gancho",
-  "tone": "aspiracional / agresivo / educativo / FOMO / etc.",
-  "key_visual_elements": ["..."],
-  "value_props_dichas": ["..."],
-  "cta_verbal": "CTA verbal o null",
-  "price_mentioned": "precio si aparece, o null",
-  "social_proof_mentioned": "social proof o null",
-  "audience": {
-    "audience_temperature": "cold | warm | retargeting",
-    "confidence": "high | medium | low",
-    "reasoning": "por qué se clasifica así",
-    "signals_detected": ["señales específicas detectadas"]
-  }
-}
-```
-
-**Clasificación de audiencia (CRÍTICO para análisis serio):**
-- 🧊 **cold (TOFU)**: ad de captación. Explica quién/qué es la marca, hooks fuertes, define el problema, producción alta. Ejemplo: revelación "I'm AI".
-- 🌡️ **warm (MOFU)**: ad de engagement. Demos del producto, casos de uso, testimonios. Asume cierto contexto.
-- 🔥 **retargeting (BOFU)**: ad de conversión. Asume familiaridad total. Urgencia/escasez (Black Friday, last chance), descuentos, recordatorios, CTA imperativo corto.
-
-Si los videos ya fueron analizados sin clasificación de audiencia, corré:
-```bash
-python3 scripts/classify_audience.py competitor-ads/<marca>
-```
-Eso clasifica usando el JSON existente sin re-procesar videos (mucho más rápido).
-
-### Paso 6 — generar `analysis.md` y `analysis.html`
+#### 3.5 — Clasificar audiencia (si no se hizo en 3.4)
 
 ```bash
-python3 scripts/build_analysis.py competitor-ads/<marca>   # markdown
-python3 scripts/build_html.py competitor-ads/<marca>       # HTML interactivo
+python3 scripts/classify_audience.py competitor-ads/<slug>
 ```
 
-Generan dos formatos del mismo informe:
+#### 3.6 — Generar informes
 
-- **`analysis.md`** — texto plano con metadata, transcripciones, traducción al español, **desglose escena por escena con timestamps**, agregado de patrones narrativos. Ideal para leer en el editor o subir a GitHub.
+```bash
+python3 scripts/build_analysis.py competitor-ads/<slug>
+python3 scripts/build_html.py competitor-ads/<slug>
+```
 
-- **`analysis.html`** — informe visual interactivo, autocontenido (un solo archivo). Tema oscuro modernos con:
-  - KPIs con cards
-  - Barra de distribución por funnel (cold/warm/retargeting) con colores
-  - Bar chart de roles narrativos
-  - Cards por creativo con **video embebido** (HTML5 `<video>` reproduce los .mp4 locales)
-  - Badges de audiencia, precio, tono
-  - Razonamiento de la clasificación con chips de señales
-  - Transcripciones colapsables (original + español)
-  - Escenas con timestamp, plano, propósito, visual, audio, texto
-  - Tabla de contenido sticky con links a cada video
+#### 3.7 — Abrir el HTML automáticamente
 
-Se abre con doble click en cualquier navegador. Es el formato a entregar al alumno.
+```bash
+open competitor-ads/<slug>/analysis.html
+```
 
-### Paso 7 — entregar al alumno
+(En Linux usar `xdg-open`, en Windows usar `start`.)
 
-Mostrale los archivos como links clickeables y resumile en 3-5 bullets lo más jugoso (cosas que SOLO salen del análisis, no obvias):
+#### 3.8 — Resumir al alumno
 
-> 🎯 **Listo. Encontré N ads activos de <marca>** (X creativos únicos, Y escenas analizadas).
+> 🎯 **Listo. Analicé N ads de <marca>** (X creativos únicos, Y escenas).
 >
-> **Lo más interesante:**
-> - 💰 <hallazgo de precio o oferta del video, si lo hay>
-> - 🎬 <patrón narrativo dominante>
-> - 🔑 <hook estrella que se repite>
-> - ⚡ <oportunidad para el alumno>
+> **Hallazgos clave:**
+> - <insight 1>
+> - <insight 2>
+> - <insight 3>
 >
-> **📂 Archivos generados** (abrí el primero):
-> - [analysis.html](competitor-ads/<marca>/analysis.html) ⭐ **informe visual interactivo (doble click para abrir)**
-> - [analysis.md](competitor-ads/<marca>/analysis.md) ← versión texto / markdown
-> - [ads_summary.csv](competitor-ads/<marca>/ads_summary.csv) ← tabla para Excel
-> - [video_analyses.json](competitor-ads/<marca>/video_analyses.json) ← datos crudos del análisis
-> - [videos/](competitor-ads/<marca>/videos/) ← N videos en .mp4
+> 📂 **Archivos generados** (ya abrí el HTML en tu navegador):
+> - [analysis.html](competitor-ads/<slug>/analysis.html) ⭐ informe visual
+> - [analysis.md](competitor-ads/<slug>/analysis.md) versión texto
+> - [ads_summary.csv](competitor-ads/<slug>/ads_summary.csv) tabla Excel
+> - [videos/](competitor-ads/<slug>/videos/) los .mp4 descargados
 >
-> ¿Querés que compare con otro competidor, o que profundice en algún ad específico?
+> ¿Quieres analizar otro competidor o comparar varios con un dashboard?
 
 ---
 
@@ -361,14 +284,14 @@ Mostrale los archivos como links clickeables y resumile en 3-5 bullets lo más j
   "pageID": "825120160874613",
   "startDateFormatted": "2026-01-30T08:00:00.000Z",
   "endDateFormatted": "2026-02-04T08:00:00.000Z",
-  "collationCount": 1,                              // variantes A/B
+  "collationCount": 1,
   "snapshot": {
     "pageName": "Notion",
     "body": { "text": "Copy del ad..." },
     "ctaText": "Learn more",
     "ctaType": "LEARN_MORE",
     "linkUrl": "https://...",
-    "displayFormat": "VIDEO",                       // VIDEO | IMAGE | DCO | CAROUSEL
+    "displayFormat": "VIDEO",
     "images": [{ "originalImageUrl": "..." }],
     "videos": [{ "videoHdUrl": "...", "videoSdUrl": "...", "videoPreviewImageUrl": "..." }],
     "cards": [],
@@ -377,20 +300,74 @@ Mostrale los archivos como links clickeables y resumile en 3-5 bullets lo más j
 }
 ```
 
-**Heurística de "qué funciona"**: ads viejos que siguen activos = los que la marca está escalando. Ordená por `startDateFormatted` ascendente. `collationCount > 1` = variantes A/B (señal de inversión seria).
+**Heurística de "qué funciona"**: ads viejos que siguen activos = los que la marca está escalando. Ordena por `startDateFormatted` ascendente. `collationCount > 1` = variantes A/B.
+
+---
+
+## 🎬 Análisis profundo de videos con Gemini 3 Flash
+
+El script `scripts/process_all_videos.py` ya hace todo el flujo:
+
+1. Lee `competitor-ads/<marca>/ads_raw.json`.
+2. Deduplica videos (varios ads suelen usar el mismo creativo).
+3. Descarga los `.mp4` SD a `videos/`.
+4. Por cada video llama a `gemini-3-flash-preview` con prompt estructurado.
+5. Guarda `video_analyses.json`.
+
+**Schema del output por video:**
+
+```jsonc
+{
+  "detected_language": "en",
+  "transcript_original": "...",
+  "transcript_es": "...",
+  "scenes_breakdown": [
+    {
+      "scene_number": 1,
+      "timestamp_start": "0:00",
+      "timestamp_end": "0:03",
+      "visual": "...",
+      "audio_dialogue": "...",
+      "audio_dialogue_es": "...",
+      "on_screen_text": "...",
+      "shot_type": "...",
+      "purpose": "hook / pain / solución / demo / oferta / objeción / CTA / social proof"
+    }
+  ],
+  "hook_first_3s": "...",
+  "tone": "...",
+  "key_visual_elements": ["..."],
+  "value_props_dichas": ["..."],
+  "cta_verbal": "...",
+  "price_mentioned": "...",
+  "social_proof_mentioned": "...",
+  "audience": {
+    "audience_temperature": "cold | warm | retargeting",
+    "confidence": "high | medium | low",
+    "reasoning": "...",
+    "signals_detected": ["..."]
+  }
+}
+```
+
+**Clasificación de audiencia:**
+- 🧊 **cold (TOFU)**: explica quién/qué es la marca, hooks fuertes, define el problema, producción alta.
+- 🌡️ **warm (MOFU)**: demos del producto, casos de uso, testimonios. Asume cierto contexto.
+- 🔥 **retargeting (BOFU)**: asume familiaridad total. Urgencia/escasez, descuentos, CTA imperativo corto.
 
 ---
 
 ## ⚠️ Errores comunes y respuestas conversacionales
 
-| Error | Qué le decís al alumno |
+| Error | Qué le dices al alumno |
 |---|---|
-| Apify `401` | *"El token de Apify no me lo acepta. ¿Lo pegás de nuevo desde [acá](https://console.apify.com/settings/integrations)?"* |
-| Apify `402` (sin saldo) | *"Se te acabó el saldo gratis de Apify. Podés cargar más [acá](https://console.apify.com/billing) ($5 USD mínimo) o esperar al mes que viene."* |
-| Apify JSON vacío `[]` | *"No encontré ads activos de esa marca. Puede ser que no esté pauteando, que el nombre esté distinto, o que esté en otro país. Probemos con otro nombre o decime de qué país?"* |
-| Gemini `429` | Esperar 30s y reintentar. No molestes al alumno. |
-| Gemini `400 invalid api key` | *"La key de Gemini no me la acepta. ¿La regenerás en [aistudio.google.com/apikey](https://aistudio.google.com/apikey) y me la pegás?"* |
-| Timeout en Apify | Reintentar con `resultsLimit: 50`. |
+| `.env` con espacios o comillas | No le dices nada — `fix_env.py` lo arregla automático. |
+| Apify `401` | *"La llave de Apify no funciona. ¿La copias de nuevo desde [acá](https://console.apify.com/settings/integrations)?"* |
+| Apify `402` (sin saldo) | *"Se acabó el saldo gratis de Apify. Carga más [aquí](https://console.apify.com/billing) ($5 USD mínimo) o espera al mes que viene."* |
+| Apify JSON vacío `[]` | *"No encontré ads activos de esa marca. Tal vez no está pauteando, o el nombre está distinto, o está en otro país. ¿Probamos con otro nombre o me dices el país?"* |
+| Gemini `429` | Espera 30s y reintenta. No molestes al alumno. |
+| Gemini `400 invalid api key` | *"La llave de Gemini no la acepta Google. ¿La regeneras en [aistudio.google.com/apikey](https://aistudio.google.com/apikey) y me la pegas?"* |
+| Timeout en Apify | Reintenta con `resultsLimit: 50`. |
 
 ---
 
@@ -398,25 +375,23 @@ Mostrale los archivos como links clickeables y resumile en 3-5 bullets lo más j
 
 - No scrapea TikTok ni LinkedIn (solo Meta = Facebook + Instagram).
 - No estima performance real (`spend`/`impressions` solo vienen en ads políticos / EU).
-- No usa navegador (Claude in Chrome / computer-use). Todo por API.
-- No sube los datos extraídos a ningún lado. Todo queda en la máquina del alumno.
+- No usa navegador. Todo por API.
+- No sube datos extraídos a ningún lado. Todo queda local.
 
 ---
 
 ## 💡 Ejemplos de uso
 
-- *"https://www.facebook.com/aivideoskool"* (solo el link → todo automático)
-- *"Analizá los ads de Glovo en Argentina"*
-- *"Comparame Rappi y PedidosYa, qué dolores usan?"*
-- *"Bajame los videos top de Notion y decime qué hooks usan"*
-- *"Mostrame qué CTAs usa más Asana"*
+- `https://www.facebook.com/aivideoskool` (solo el link → todo automático)
+- *"Analiza los ads de Glovo en México"*
+- *"Compara Rappi y PedidosYa, qué pain points usan"*
+- *"Bájame los videos top de Notion y dime qué hooks usan"*
+- *"Hazme el dashboard cross-competidor con todos los que ya analicé"*
 
 ---
 
-## 🔁 Si el alumno corre por segunda vez
+## 🔁 Segunda corrida (alumno que ya configuró todo)
 
-Si `.env` ya tiene ambas claves, **NO repitas el onboarding**. Saludá corto y arrancá:
+Si `.env` ya tiene ambas llaves válidas, **NO repitas el onboarding**. Saluda corto y arranca:
 
-> 👋 Buenas. Arrancando análisis de **<marca>**... ⏳
-
-Si una clave dejó de funcionar (ej. revoked), el flujo de validación lo va a detectar y vas a pedirla de nuevo conversacionalmente.
+> 👋 ¡Hola de nuevo! Detecté tus llaves, voy a analizar **<marca>**...

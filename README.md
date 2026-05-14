@@ -53,13 +53,13 @@ Claude va a clonar el repo y te va a pedir **dos llaves gratuitas** (Apify + Gem
 
 ### Paso 5 — Pásale el link de tu competidor
 
-Cuando Claude te confirme que ya está todo listo, simplemente escribe:
+Cuando Claude te confirme que ya está todo listo, simplemente escribe el link de la página de Facebook del competidor. Cualquiera de estos formatos funciona:
 
 ```
 https://www.facebook.com/aivideoskool
+https://www.facebook.com/profile.php?id=61577852912181
+https://www.facebook.com/martinvelardefilm
 ```
-
-(reemplaza por el link del competidor que quieras analizar)
 
 **Eso es todo.** En 5 minutos tienes un dashboard listo.
 
@@ -67,23 +67,40 @@ https://www.facebook.com/aivideoskool
 
 ## 🔑 ¿Dónde pongo mis API keys?
 
-La primera vez que uses la skill, Claude te va a pedir dos llaves:
+Tienes dos opciones:
 
-### 1. Token de Apify (para descargar los anuncios)
+### Opción A (recomendada) — Deja que Claude te guíe
 
+La primera vez, Claude detecta que faltan las llaves y te las pide en el chat con instrucciones paso a paso. Tú solo pegas las llaves en el chat, Claude las guarda automáticamente en un archivo `.env` dentro de tu carpeta. **No tocas ningún archivo manualmente.**
+
+### Opción B — Crearlas tú mismo
+
+Si prefieres hacerlo a mano:
+
+1. Copia el archivo `.env.example` y renómbralo a `.env`
+2. Abre `.env` con cualquier editor de texto
+3. Reemplaza los placeholders con tus llaves reales:
+
+```
+APIFY_TOKEN=apify_api_xxxxxxxxxxxxxxxx
+GEMINI_API_KEY=AIzaxxxxxxxxxxxxxxxxxx
+```
+
+⚠️ **Importante:** No dejes espacios alrededor del `=`, ni comillas alrededor de las llaves. Si te equivocas, no te preocupes — la skill detecta y corrige automáticamente los errores de formato más comunes.
+
+### ¿De dónde saco las llaves?
+
+**Token de Apify** (para descargar los anuncios):
 - Crea cuenta gratis: https://console.apify.com/sign-up
 - Ve a: https://console.apify.com/settings/integrations
 - Copia el token que empieza con `apify_api_...`
-- **Pégaselo a Claude en el chat** (no tienes que editar ningún archivo)
 
-### 2. API key de Google Gemini (para analizar los videos)
-
+**API key de Google Gemini** (para analizar los videos):
 - Entra a: https://aistudio.google.com/apikey
 - Haz click en **"Create API key"**
 - Copia la llave (empieza con `AIza...`)
-- **Pégasela a Claude en el chat**
 
-Claude guarda las dos llaves automáticamente en un archivo `.env` dentro de tu carpeta. Ese archivo nunca se sube a internet (está protegido por `.gitignore`). Solo lo necesitas configurar **una vez**.
+El archivo `.env` nunca se sube a internet — está protegido por `.gitignore`. Solo necesitas configurar las llaves **una vez**.
 
 ---
 
@@ -101,13 +118,27 @@ competitor-ads/
     └── 🎞️ videos/  (todos los .mp4 en HD)
 ```
 
-Y si analizaste varios competidores, pídele a Claude:
+El `analysis.html` es un dashboard interactivo con:
+- **Lista de creativos** a la izquierda con filtros por audiencia (frío/tibio/retargeting)
+- **Video embebido** que puedes reproducir directamente
+- **Hook** (primeros 3 segundos analizados)
+- **Transcripción original y traducción al español**
+- **Desglose escena por escena** con timestamps, qué se ve, qué se dice y qué texto aparece en pantalla
+- **Clasificación de audiencia** con razonamiento (por qué este ad es para frío, tibio o retargeting)
+
+### Dashboard comparativo
+
+Si analizaste varios competidores, pídele a Claude:
 
 ```
 Hazme el dashboard cross-competidor
 ```
 
-Te genera un `dashboard.html` con timeline, comparativa lado a lado y explorador de todos los videos.
+Te genera un `dashboard.html` con:
+- **Resumen** con KPIs globales y competidores que están lanzando ads nuevos
+- **Timeline** con qué tan viejo es el ad más antiguo de cada competidor (los que llevan más tiempo activos son los ganadores escalados)
+- **Comparativa lado a lado** de todas las métricas
+- **Explorador de videos** filtrable con todos los creativos de todos los competidores
 
 ---
 
@@ -129,12 +160,20 @@ Un análisis típico cuesta **menos de $0.01 USD**. Con las cuentas gratuitas te
 - *"Compara Notion, Asana y ClickUp"*
 - *"Bájame los videos top del nicho de fitness"*
 - *"Hazme el dashboard con todos los competidores que analicé"*
+- *"¿Qué competidor tiene los ads que llevan más tiempo activos?"*
+- *"Búscame ads en español dentro de los competidores que ya analicé"*
 
 ---
 
 ## 🆘 Si algo sale mal
 
 Solo dile a Claude en el chat: *"Me dio error"* o *"No encontró nada"*. Él diagnostica y arregla.
+
+Los errores más comunes ya están cubiertos automáticamente:
+- ✅ Formato del `.env` (espacios, comillas, saltos de línea de Windows)
+- ✅ URLs de página vs. URLs de Ad Library (acepta cualquier formato)
+- ✅ Validación de las llaves antes de gastar créditos
+- ✅ Detección de competidores con muchos ads (filtra automáticamente a los top 30 más relevantes)
 
 ---
 
